@@ -261,7 +261,7 @@ def display(tile, indent='', finished=None):
                 #print 'gonna print *', t
                 print '\n'
                 display(t, indent+'   ', finished)
-    print ''
+    #print ''
 
 def pygameDisplay():
     '''make a call to this method from the middle of the build algorithm

@@ -8,6 +8,7 @@ from pygame.locals import * #the KeyboardController needs these
 
 import events
 import catan
+import mapmodel
 
 tileGroup = pygame.sprite.RenderUpdates()
 tileModelToSprite = {}
@@ -17,7 +18,7 @@ cornerModelToSprite = {}
 class EasySprite(pygame.sprite.Sprite):
     def __getattr__(self, attrname):
         try:
-            return pygame.sprite.Sprite.__getattr__(self, attrname)
+            return pygame.sprite.Sprite.__getattribute__(self, attrname)
         except AttributeError:
             if hasattr(self.rect, attrname):
                 return getattr(self.rect, attrname)
@@ -136,17 +137,51 @@ class Tile(EasySprite):
         tileModelToSprite[tile] = self
 
     def calcCornerPositions(self):
-        self.cornerPositions = [
-                                r.midright,
-                                (2*r.width/3, r.top),
-                                (2*r.width/3, r.bottom),
-                                (r.width/3, r.top),
-                                (r.width/3, r.bottom),
-                                r.midleft,
-                                ]
-
-    def setCenterFromEdge(self, edge):
-        cSprite1 = edge.corners[0]
+        r = self.rect
+        We = r.midleft
+        NW = (r.width/3, r.top)
+        NE = (2*r.width/3, r.top)
+        Ea = r.midright
+        SE = (2*r.width/3, r.bottom)
+        SW = (r.width/3, r.bottom)
+        if self.tile.name == 't01':
+            self.cornerPositions = [ NW, We, NE, SW, Ea, SE ]
+        elif self.tile.name in ['t02','t10']:
+            self.cornerPositions = [ Ea, SE, NE, SW, NW, We ]
+        elif self.tile.name in ['t03']:
+            self.cornerPositions = [ SW, SE, We, Ea, NW, NE ]
+        elif self.tile.name in ['t04']:
+            self.cornerPositions = [ NE, Ea, NW, SE, We, SW ]
+        elif self.tile.name in ['t05']:
+            self.cornerPositions = [ We, SW, NW, SE, NE, Ea ]
+        elif self.tile.name in ['t06']:
+            self.cornerPositions = [ NW, NE, We, Ea, SW, SE ]
+        elif self.tile.name in ['t07']:
+            self.cornerPositions = [ NW, We, NE, SW, Ea, SE ]
+        elif self.tile.name in ['t08']:
+            self.cornerPositions = [ SE, SW, Ea, We, NE, NW ]
+        elif self.tile.name in ['t09']:
+            self.cornerPositions = [ Ea, NE, SE, NW, SW, We ]
+        elif self.tile.name in ['t11']:
+            self.cornerPositions = [ SW, We, SE, NW, Ea, NE ]
+        elif self.tile.name in ['t12']:
+            self.cornerPositions = [ SW, SE, We, Ea, NW, NE ]
+        elif self.tile.name in ['t13']:
+            self.cornerPositions = [ NE, NW, Ea, We, SE, SW ]
+        elif self.tile.name in ['t14']:
+            self.cornerPositions = [ NE, Ea, NW, SE, We, SW ]
+        elif self.tile.name in ['t15']:
+            self.cornerPositions = [ We, NW, SW, NE, SE, Ea ]
+        elif self.tile.name in ['t16']:
+            self.cornerPositions = [ We, SW, NW, SE, NE, Ea ]
+        elif self.tile.name in ['t17']:
+            self.cornerPositions = [ NW, We, NE, SW, Ea, SE ]
+        elif self.tile.name in ['t18']:
+            self.cornerPositions = [ NW, NE, We, Ea, SW, SE ]
+        elif self.tile.name in ['t19']:
+            self.cornerPositions = [ NW, We, NE, SW, Ea, SE ]
+        else:
+            raise Exception('too many tiles')
 
     def update(self):
         if not self.dirty:
@@ -258,11 +293,10 @@ class PygameView:
             t = tiles.pop(0)
             tSprite = Tile(t)
             tSprite.center = center
-            tSprite.
-            x = 300 + sprite.tile.graphicalPosition[0]*75
+            x = 300 + tSprite.tile.graphicalPosition[0]*75
             # minus because pygame uses less = up in the y dimension
-            y = 300 - sprite.tile.graphicalPosition[1]*75
-            sprite.rect.move_ip(x,y)
+            y = 300 - tSprite.tile.graphicalPosition[1]*55
+            tSprite.rect.move_ip(x,y)
         for c in catan.mapmodel.allCorners:
             corner = Corner(c)
 
@@ -318,14 +352,15 @@ class BoardDisplay(object):
             visitedCorners.append(corner)
 
             if edge:
-                otherTile = (edge.tiles - [tile])[0]
-                if otherTile in remainingTiles:
-                    otherTileS.setCenterFromEdge(edge)
+                otherTiles = (edge.tiles - [tile])
+                if otherTiles:
+                    otherTile = otherTiles[0]
+                    if otherTile in remainingTiles:
+                        otherTileS.setCenterFromEdge(edge, tSprite)
 
         walk_corners_along_tile(tile, visitFn)
 
 
-            
 
 #------------------------------------------------------------------------------
 def main():

@@ -14,23 +14,62 @@ tileGroup = pygame.sprite.RenderUpdates()
 tileModelToSprite = {}
 cornerGroup = pygame.sprite.RenderUpdates()
 cornerModelToSprite = {}
+edgeGroup = pygame.sprite.RenderUpdates()
+edgeModelToSprite = {}
+hudGroup = pygame.sprite.RenderUpdates()
 
+terrain_colors = {
+    catan.Mountain: (100,100,100) ,
+    catan.Mud:  (255,50,50),
+    catan.Wheat:  (255,255,0),
+    catan.Grass:  (100,255,100),
+    catan.Forest:  (0,200,0),
+    catan.Desert:  (240,240,200),
+}
+
+blue = (0,0,255)
+
+# -----------------------------------------------------------------------------
+class EasySurface(pygame.Surface):
+    def __init__(self, sizeSpec):
+        if isinstance(sizeSpec, pygame.Rect):
+            sizeSpec = sizeSpec.size
+        pygame.Surface.__init__(self, sizeSpec, flags=pygame.SRCALPHA)
+
+# -----------------------------------------------------------------------------
 class EasySprite(pygame.sprite.Sprite):
     def __getattr__(self, attrname):
         try:
             return pygame.sprite.Sprite.__getattribute__(self, attrname)
         except AttributeError:
-            if hasattr(self.rect, attrname):
-                return getattr(self.rect, attrname)
+            if ('rect' in self.__dict__
+               and hasattr(self.__dict__['rect'], attrname)):
+                return getattr(self.__dict__['rect'], attrname)
             raise
 
     def __setattr__(self, attrname, val):
-        try:
-            return pygame.sprite.Sprite.__setattr__(self, attrname, val)
-        except AttributeError:
-            if hasattr(self.rect, attrname):
-                return setattr(self.rect, attrname, val)
-            raise
+        l = ('x y width height center centerx centery topleft midtop topright'
+             ' right bottomright midbottom bottomleft left').split()
+        if attrname in l:
+            return setattr(self.__dict__['rect'], attrname, val)
+        return pygame.sprite.Sprite.__setattr__(self, attrname, val)
+
+# -----------------------------------------------------------------------------
+def font_render(text, size=20, color=(255,0,0)):
+    font = pygame.font.Font(None, size)
+    return font.render(text, 1, color)
+        
+
+# -----------------------------------------------------------------------------
+def blit_at_center(img1, img2, rect1=None, rect2=None):
+    if rect1 == None:
+        rect1 = img1.get_rect()
+    if rect2 == None:
+        rect2 = img2.get_rect()
+    pos = vect_diff(rect1.center, rect2.center)
+    img1.blit(img2, pos)
+
+
 
 def vect_add(v1, v2):
     return v1[0]+v2[0], v1[1]+v2[1]
@@ -114,20 +153,42 @@ class KeyboardController:
             if ev:
                 events.post( ev )
 
+#------------------------------------------------------------------------------
+class DiceButton(EasySprite):
+    def __init__(self):
+        EasySprite.__init__(self)
+        self.image = EasySurface( (150,100) )
+        self.rect = self.image.get_rect()
+        r = self.rect.move(0,0)
+        pygame.draw.rect(self.image, blue, r, 2)
+        r.size = 60,60
+        r.topleft = 8,8
+        pygame.draw.rect(self.image, blue, r, 1)
+        r.topright = 142,8
+        pygame.draw.rect(self.image, blue, r, 1)
+
+        r = self.rect.move(0,0)
+        r.height = 46
+        r.y = 58
+        txtImg = font_render('ROLL')
+        blit_at_center(self.image, txtImg, rect1=r)
+
+        hudGroup.add(self)
+
+        self.dirty = True
 
 #------------------------------------------------------------------------------
 class Tile(EasySprite):
     def __init__(self, tile):
         EasySprite.__init__(self)
-        self.image = pygame.Surface( (100,100) )
+        self.image = EasySurface( (100,100) )
         self.rect = self.image.get_rect()
         self.dirty = True
         r = self.rect
 
         #self.image.fill( (0,255,128) )
-        font = pygame.font.Font(None, 20)
         text = tile.name
-        textImg = font.render(text, 1, (255,0,0))
+        textImg = font_render(text)
         self.image.blit( textImg, r.center )
 
         self.tile = tile
@@ -148,15 +209,15 @@ class Tile(EasySprite):
             self.cornerPositions = [ NW, We, NE, SW, Ea, SE ]
         elif self.tile.name in ['t02','t10']:
             self.cornerPositions = [ Ea, SE, NE, SW, NW, We ]
-        elif self.tile.name in ['t03']:
+        elif self.tile.name in ['t03', 't12']:
             self.cornerPositions = [ SW, SE, We, Ea, NW, NE ]
-        elif self.tile.name in ['t04']:
+        elif self.tile.name in ['t04', 't14']:
             self.cornerPositions = [ NE, Ea, NW, SE, We, SW ]
-        elif self.tile.name in ['t05']:
+        elif self.tile.name in ['t05', 't16']:
             self.cornerPositions = [ We, SW, NW, SE, NE, Ea ]
-        elif self.tile.name in ['t06']:
+        elif self.tile.name in ['t06', 't18']:
             self.cornerPositions = [ NW, NE, We, Ea, SW, SE ]
-        elif self.tile.name in ['t07']:
+        elif self.tile.name in ['t07', 't17', 't19']:
             self.cornerPositions = [ NW, We, NE, SW, Ea, SE ]
         elif self.tile.name in ['t08']:
             self.cornerPositions = [ SE, SW, Ea, We, NE, NW ]
@@ -164,99 +225,158 @@ class Tile(EasySprite):
             self.cornerPositions = [ Ea, NE, SE, NW, SW, We ]
         elif self.tile.name in ['t11']:
             self.cornerPositions = [ SW, We, SE, NW, Ea, NE ]
-        elif self.tile.name in ['t12']:
-            self.cornerPositions = [ SW, SE, We, Ea, NW, NE ]
         elif self.tile.name in ['t13']:
             self.cornerPositions = [ NE, NW, Ea, We, SE, SW ]
-        elif self.tile.name in ['t14']:
-            self.cornerPositions = [ NE, Ea, NW, SE, We, SW ]
         elif self.tile.name in ['t15']:
             self.cornerPositions = [ We, NW, SW, NE, SE, Ea ]
-        elif self.tile.name in ['t16']:
-            self.cornerPositions = [ We, SW, NW, SE, NE, Ea ]
-        elif self.tile.name in ['t17']:
-            self.cornerPositions = [ NW, We, NE, SW, Ea, SE ]
-        elif self.tile.name in ['t18']:
-            self.cornerPositions = [ NW, NE, We, Ea, SW, SE ]
-        elif self.tile.name in ['t19']:
-            self.cornerPositions = [ NW, We, NE, SW, Ea, SE ]
         else:
-            raise Exception('too many tiles')
+            raise Exception('unknown tile')
 
     def update(self):
         if not self.dirty:
             return
 
-        #self.image.fill( (0,255,128) )
-        font = pygame.font.Font(None, 20)
+        r = self.rect.move((0,0))
+        r.topleft = 0,0
+
+        # draw the terrain color
+        terrain = self.tile.terrain
+        if terrain:
+            color = terrain_colors[terrain.__class__]
+            pygame.draw.circle(self.image, color, r.center, r.width/2)
+
+        # draw the tile name
         text = self.tile.name
-        textImg = font.render(text, 1, (255,0,0))
-        self.image.blit(textImg, (self.rect.width/2, self.rect.height/2) )
+        textImg = font_render(text)
+        blit_at_center(self.image, textImg)
+
+        #self.debug_draw()
+
+        self.dirty = False
+
+    def debug_draw(self):
         for i, c in enumerate(self.tile.corners):
             corner = cornerModelToSprite[c]
-            corner.rect.center = self.cornerPositions[i]
-            corner.rect.clamp_ip(self.image.get_rect())
-            self.image.blit(corner.image, corner.rect.topleft)
-        #for i, e in enumerate(self.tile.edges):
-            #font = pygame.font.Font(None, 15)
-            #text = e.name
-            #textImg = font.render(text, 1, (0,0,255))
-            #if len(e.corners) == 2:
-                #c1, c2 = e.corners
-                #corner = cornerModelToSprite[c1]
-                #pos1 = corner.rect.center
-                #corner = cornerModelToSprite[c2]
-                #pos2 = corner.rect.center
-                #pygame.draw.aaline(self.image, (0,0,255), pos1, pos2)
-                #r = pygame.Rect(pos1[0], pos1[1],
-                                #(pos2[0] - pos1[0]), (pos2[1] - pos1[1]))
-                #self.image.blit(textImg, r.center)
-            #else:
-                #self.image.blit(textImg, (40,14*i))
-        self.dirty = False
+            r = corner.rect.move((0,0))
+            r.center = self.cornerPositions[i]
+            r.clamp_ip(self.image.get_rect())
+            self.image.blit(corner.image, r.topleft)
+        for i, e in enumerate(self.tile.edges):
+            text = e.name
+            textImg = font_render(text, size=15, color=blue)
+            if len(e.corners) == 2:
+                c1, c2 = e.corners
+                corner = cornerModelToSprite[c1]
+                pos1 = corner.rect.center
+                corner = cornerModelToSprite[c2]
+                pos2 = corner.rect.center
+                pygame.draw.aaline(self.image, blue, pos1, pos2)
+                r = pygame.Rect(pos1[0], pos1[1],
+                                (pos2[0] - pos1[0]), (pos2[1] - pos1[1]))
+                self.image.blit(textImg, r.center)
+            else:
+                self.image.blit(textImg, (40,14*i))
                 
 
 #------------------------------------------------------------------------------
 class Corner(EasySprite):
     def __init__(self, corner):
-        print 'making corner', corner.name
+        #print 'making corner', corner.name
         EasySprite.__init__(self)
-        self.image = pygame.Surface( (22,22) )
+        self.image = EasySurface( (22,22) )
         self.rect = self.image.get_rect()
         r = self.rect
 
-        self.image.fill( (0,255,28) )
-        font = pygame.font.Font(None, 15)
+        self.image.fill( (0,255,28, 128) )
         text = corner.name
-        textImg = font.render(text, 1, (5,0,0))
+        textImg = font_render(text, size=15, color=(5,0,0))
         self.image.blit( textImg, r.topleft )
 
         self.corner = corner
         cornerGroup.add(self)
         cornerModelToSprite[corner] = self
 
+        self.dirty = True
+
+    def update(self):
+        if not self.dirty:
+            return
+
+        for e in self.corner.edges:
+            eSprite = edgeModelToSprite.get(e)
+            if eSprite:
+                eSprite.dirty = True
+
+        self.move_to_absolute_position()
+        self.dirty = False
+
+    def move_to_absolute_position(self):
+        corner = self.corner
+        tile = corner.tiles[0]
+        idx = tile.corners.index(self.corner)
+        tSprite = tileModelToSprite[tile]
+        rel_pos = tSprite.cornerPositions[idx]
+        abs_pos = vect_add(tSprite.topleft, rel_pos)
+        self.move_ip(abs_pos)
+
 #------------------------------------------------------------------------------
 class Edge(EasySprite):
     def __init__(self, edge):
-        print 'making edge', edge.name
+        #print 'making edge', edge.name
         EasySprite.__init__(self)
-        if len(edge.corners) != 2:
+
+        self.edge = edge
+
+        edgeGroup.add(self)
+        edgeModelToSprite[edge] = self
+
+        if len(self.edge.corners) != 2:
             print '??'
             return
-        c1, c2 = e.corners
-        corner = cornerModelToSprite[c1]
-        r1 = corner.rect
-        corner = cornerModelToSprite[c2]
-        r2 = corner.rect
 
-        self.rect = pygame.Rect(r1.center, vect_diff(r1.center, r2.center))
+        c1, c2 = self.edge.corners
+        cSprite = cornerModelToSprite[c1]
+        r1 = cSprite.rect
+        r1_point = pygame.Rect(r1.center,(1,1))
+        cSprite = cornerModelToSprite[c2]
+        r2 = cSprite.rect
+        r2_point = pygame.Rect(r2.center,(1,1))
+
+        self.rect = r1.union(r2)
+
         norm_rect = self.rect.move(0,0)
         norm_rect.normalize()
-        self.image = pygame.Surface(self.rect)
+        self.image = EasySurface(self.rect)
+        self.image.fill(blue)
 
-        pygame.draw.aaline(self.image, (0,0,255),
-                           vect_diff(self.rect.topleft, norm_rect.topleft),
-                           vect_diff(self.rect.bottomright, norm_rect.topleft))
+        self.dirty = True
+
+    def update(self):
+        if not self.dirty:
+            return
+
+        c1, c2 = self.edge.corners
+
+        c1Sprite = cornerModelToSprite[c1]
+        r1 = c1Sprite.rect
+        r1_point = pygame.Rect(r1.center,(1,1))
+
+        c2Sprite = cornerModelToSprite[c2]
+        r2 = c2Sprite.rect
+        r2_point = pygame.Rect(r2.center,(1,1))
+
+        self.rect = r1.union(r2)
+
+        norm_rect = self.rect.move(0,0)
+        norm_rect.normalize()
+        self.image = EasySurface(self.rect)
+
+        #print 'drawing edge from, to', c1Sprite.center, c2Sprite.center
+        pygame.draw.aaline(self.image, blue,
+                           vect_diff(c1Sprite.center, self.rect.topleft),
+                           vect_diff(c2Sprite.center, self.rect.topleft))
+
+        self.dirty = False
 
 #------------------------------------------------------------------------------
 class PygameView:
@@ -273,6 +393,12 @@ class PygameView:
         self.window.blit( self.background, (0,0) )
         pygame.display.flip()
 
+
+    #----------------------------------------------------------------------
+    def showHud(self):
+        dbutton = DiceButton()
+        print 'setting dbutton.topleft'
+        dbutton.topleft = 600, 300
 
     #----------------------------------------------------------------------
     def showMap(self):
@@ -292,21 +418,36 @@ class PygameView:
         while tiles:
             t = tiles.pop(0)
             tSprite = Tile(t)
-            tSprite.center = center
             x = 300 + tSprite.tile.graphicalPosition[0]*75
             # minus because pygame uses less = up in the y dimension
             y = 300 - tSprite.tile.graphicalPosition[1]*55
             tSprite.rect.move_ip(x,y)
         for c in catan.mapmodel.allCorners:
             corner = Corner(c)
+        for e in catan.mapmodel.allEdges:
+            eSprite = Edge(e)
+            
 
     #----------------------------------------------------------------------
     def draw(self):
         self.window.blit( self.background, (0,0) )
 
-        for tile in tileGroup:
-            tile.update()
-            dirtyRects = tileGroup.draw( self.window )
+        for tSprite in tileGroup:
+            tSprite.update()
+        dirtyRects = tileGroup.draw( self.window )
+
+        for cSprite in cornerGroup:
+            cSprite.update()
+        dirtyRects = cornerGroup.draw( self.window )
+
+        for eSprite in edgeGroup:
+            eSprite.update()
+        dirtyRects = edgeGroup.draw( self.window )
+
+        for hudSprite in hudGroup:
+            hudSprite.update()
+        dirtyRects = hudGroup.draw( self.window )
+
 
         pygame.display.flip()
         time.sleep(1)
@@ -314,6 +455,8 @@ class PygameView:
     #----------------------------------------------------------------------
     def onStartGame(self):
         self.showMap()
+
+        self.showHud()
 
     #----------------------------------------------------------------------
     def onTick(self):

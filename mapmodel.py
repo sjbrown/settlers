@@ -7,18 +7,18 @@ RINGS = 2
 
 allTiles = []
 allCorners = []
+allEdges = []
 cornersToTiles = {}
 edgesToTiles = {}
 centerTile = None
 
 
 class Edge(object):
-    counter = 0
     def __init__(self):
         self.tiles = []
         self.corners = []
-        Edge.counter += 1
-        self.name = 'e%02d' % Edge.counter
+        allEdges.append(self)
+        self.name = 'e%02d' % (allEdges.index(self) + 1)
 
     def __str__(self):
         return '<%s>' % self.name
@@ -134,6 +134,10 @@ class Corner(object):
         return self is other
     def __ne__(self, other):
         return not self == other
+
+    def getTiles(self):
+        return cornersToTiles[self][:] # return a copy
+    tiles = property(getTiles)
 
     def getEdges(self):
         return [e for e in self.edges if e is not None]

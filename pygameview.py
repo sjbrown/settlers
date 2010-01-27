@@ -151,11 +151,13 @@ class KeyboardController:
                 ev = events.Quit()
             elif event.type == KEYDOWN:
                 if event.key == K_ESCAPE:
-                    ev = events.Quit()
-                    print event.mod
+                    # Hit Shift-ESC or Ctrl-ESC to go to the debugger
+                    # otherwise ESC will quit the game
                     if event.mod:
                         import pdb
                         pdb.set_trace()
+                    else:
+                        ev = events.Quit()
                 else:
                     ev = ('KeyDown', event.key, event.unicode, event.mod)
             if ev:

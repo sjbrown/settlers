@@ -9,6 +9,7 @@ from pygame.locals import * #the KeyboardController needs these
 import events
 import catan
 import mapmodel
+import textrect
 
 tileGroup = pygame.sprite.RenderUpdates()
 tileModelToSprite = {}
@@ -27,6 +28,8 @@ terrain_colors = {
     catan.Desert:  (240,240,200),
 }
 
+red = (255,0,0)
+green = (0,255,0)
 blue = (0,0,255)
 
 # -----------------------------------------------------------------------------
@@ -149,9 +152,110 @@ class KeyboardController:
             elif event.type == KEYDOWN:
                 if event.key == K_ESCAPE:
                     ev = events.Quit()
-
+                    print event.mod
+                    if event.mod:
+                        import pdb
+                        pdb.set_trace()
+                else:
+                    ev = ('KeyDown', event.key, event.unicode, event.mod)
             if ev:
-                events.post( ev )
+                if isinstance(ev, tuple):
+                    events.post( *ev )
+                else:
+                    events.post( ev )
+
+#------------------------------------------------------------------------------
+class EndTurnButton(EasySprite):
+    def __init__(self):
+        EasySprite.__init__(self)
+        self.image = EasySurface( (150,50) )
+        self.rect = self.image.get_rect()
+        r = self.rect.move(0,0)
+        pygame.draw.rect(self.image, blue, r, 2)
+
+        txtImg = font_render('END TURN')
+        blit_at_center(self.image, txtImg)
+
+        hudGroup.add(self)
+
+        self.dirty = True
+
+#------------------------------------------------------------------------------
+class Console(EasySprite):
+    def __init__(self):
+        EasySprite.__init__(self)
+        events.registerListener(self)
+        self.image = EasySurface( (300,80) )
+        self.rect = self.image.get_rect()
+
+        self.outText = dict(text='...console output...', color=green )
+        self.inText = dict(text='|', color=green )
+
+        self.drawBg()
+        self.drawText()
+
+        hudGroup.add(self)
+        self.dirty = True
+
+    #----------------------------------------------------------------------
+    def drawBg(self):
+        bg = self.image.copy()
+        r = self.rect.move(0,0)
+        r.topleft = 0,0
+        pygame.draw.rect(bg, green, r, 2)
+
+        r.y = r.height/2
+        r.height = r.height/2
+        pygame.draw.rect(bg, green, r, 1)
+
+        self.image.blit(bg, (0,0))
+
+    #----------------------------------------------------------------------
+    def drawText(self):
+        r = self.rect.move(0,0)
+        r.topleft = 0,0
+        halfY = r.height/2
+        #r.topleft = 2,2
+        r.height = halfY
+        r.inflate_ip(-4,-4)
+        #print 'rendering', self.outText, 'on', r
+        txtImg = textrect.render_textrect(rect=r,**self.outText)
+        self.image.blit(txtImg, r)
+
+        r.y = halfY + 2
+        txtImg = font_render(**self.inText)
+        self.image.blit(txtImg, r)
+
+    #----------------------------------------------------------------------
+    def update(self):
+        self.image.fill( (0,0,0) )
+        self.drawBg()
+        self.drawText()
+
+    #----------------------------------------------------------------------
+    def onKeyDown(self, keycode, keyletter, mods):
+        if keycode == K_BACKSPACE:
+            self.inText['text'] = self.inText['text'][:-2] +'|'
+        if keycode == K_RETURN:
+            statement = self.inText['text'][:-1]
+            self.inText['text'] = '|'
+            try:
+                exec statement
+            except Exception, ex:
+                out = str(ex)
+                self.outText['text'] = out
+        else:
+            self.inText['text'] = self.inText['text'][:-1] + keyletter +'|'
+        
+    #----------------------------------------------------------------------
+    def notify(self, event):
+        if isinstance(event, events.Tick):
+            return
+        text = self.outText['text']
+        lines = text.split('\n')
+        self.outText['text'] = '\n'.join([lines[-1], str(event)]) #last 2 items
+
+
 
 #------------------------------------------------------------------------------
 class DiceButton(EasySprite):
@@ -159,23 +263,53 @@ class DiceButton(EasySprite):
         EasySprite.__init__(self)
         self.image = EasySurface( (150,100) )
         self.rect = self.image.get_rect()
-        r = self.rect.move(0,0)
-        pygame.draw.rect(self.image, blue, r, 2)
-        r.size = 60,60
-        r.topleft = 8,8
-        pygame.draw.rect(self.image, blue, r, 1)
-        r.topright = 142,8
-        pygame.draw.rect(self.image, blue, r, 1)
 
-        r = self.rect.move(0,0)
-        r.height = 46
-        r.y = 58
-        txtImg = font_render('ROLL')
-        blit_at_center(self.image, txtImg, rect1=r)
+        self.rollText = dict(text='ROLL', color=(255,0,0) )
+        self.diceText = dict(text='*', size=30, color=(255,0,0) )
+
+        self.drawBg()
+        self.drawText()
 
         hudGroup.add(self)
 
+        events.registerListener(self)
         self.dirty = True
+
+    #----------------------------------------------------------------------
+    def drawBg(self):
+        bg = EasySurface( (150,100) )
+        r = self.rect.move(0,0)
+        r.topleft = 0,0
+        pygame.draw.rect(bg, blue, r, 2)
+        r.size = 60,60
+        r.topleft = 8,8
+        pygame.draw.rect(bg, blue, r, 1)
+        r.topright = 142,8
+        pygame.draw.rect(bg, blue, r, 1)
+        self.image.blit(bg, (0,0))
+
+    #----------------------------------------------------------------------
+    def drawText(self):
+        r = self.rect.move(0,0)
+        r.topleft = 0,35
+        txtImg = font_render(**self.rollText)
+        blit_at_center(self.image, txtImg, rect1=r)
+
+        r.size = 50,50
+        r.topleft = 12,12
+        txtImg = font_render(**self.diceText)
+        self.image.blit(txtImg, r)
+
+    #----------------------------------------------------------------------
+    def update(self):
+        self.image.fill( (0,0,0) )
+        self.drawBg()
+        self.drawText()
+
+    #----------------------------------------------------------------------
+    def onDiceRoll(self, rollValue):
+        self.diceText['text'] = str(rollValue)
+
 
 #------------------------------------------------------------------------------
 class Tile(EasySprite):
@@ -397,8 +531,12 @@ class PygameView:
     #----------------------------------------------------------------------
     def showHud(self):
         dbutton = DiceButton()
-        print 'setting dbutton.topleft'
         dbutton.topleft = 600, 300
+        ebutton = EndTurnButton()
+        ebutton.topleft = 600, 440
+
+        console = Console()
+        console.topleft = 10, 640
 
     #----------------------------------------------------------------------
     def showMap(self):
@@ -455,7 +593,6 @@ class PygameView:
     #----------------------------------------------------------------------
     def onStartGame(self):
         self.showMap()
-
         self.showHud()
 
     #----------------------------------------------------------------------
@@ -515,4 +652,10 @@ def main():
     spinner.run()
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception, ex:
+        print ex
+        import pdb
+        pdb.set_trace()
+        raise

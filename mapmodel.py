@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 from itertools import combinations
+import events
 
 # How many "rings" are in the hextile "onion".  Doesn't count the center tile
 RINGS = 2
@@ -12,13 +13,48 @@ cornersToTiles = {}
 edgesToTiles = {}
 centerTile = None
 
+#------------------------------------------------------------------------------
+def walk_corners_along_tile(tile, visitFn, firstCorner=None):
+    corners = tile.corners[:] # copy
 
-class Edge(object):
+    if firstCorner:
+        corner = firstCorner
+        corners.remove(corner)
+    else:
+        corner = corners.pop(0)
+    visitFn(corner, None)
+
+    while corners:
+        for edge in corner.edges:
+            if tile not in edge.tiles:
+                continue
+
+            nextCorner = edge.otherCorner(corner)
+            if set(edge.corners) == set(corner, nextCorner):
+                continue
+
+            corner = nextCorner
+            corners.remove(corner)
+            visitFn(corner, edge)
+            break
+
+
+#------------------------------------------------------------------------------
+class BuildableLocation(object):
+    def add(self, item):
+        self.stuff.append(item)
+        item.location = self
+        events.post('ItemPlaced', item)
+
+#------------------------------------------------------------------------------
+class Edge(BuildableLocation):
     def __init__(self):
         self.tiles = []
         self.corners = []
         allEdges.append(self)
         self.name = 'e%02d' % (allEdges.index(self) + 1)
+        # Edges can "contain" Roads
+        self.stuff = []
 
     def __str__(self):
         return '<%s>' % self.name
@@ -27,6 +63,11 @@ class Edge(object):
 
     def getTiles(self):
         return [t for t in self.tiles if t is not None]
+
+    def otherCorner(self, corner):
+        '''return the corner at the other end of this edge'''
+        assert len(self.corners) == 2
+        return self.corners[self.corners.index(corner) - 1]
 
     def cornerTileDistanceToCenter(self):
         '''Take the corner which is closest to the center, find its tile
@@ -116,12 +157,15 @@ class Edge(object):
                         t.addCorner(corner)
 
 
-class Corner(object):
+#------------------------------------------------------------------------------
+class Corner(BuildableLocation):
     def __init__(self):
         self.edges = []
         allCorners.append(self)
         self.cornerDistance = None
         self.name = 'c%02d' % (allCorners.index(self) + 1)
+        # Corners can "contain" Settlements and Cities
+        self.stuff = []
 
     def __str__(self):
         return '<%s>' % self.name
@@ -141,6 +185,13 @@ class Corner(object):
 
     def getEdges(self):
         return [e for e in self.edges if e is not None]
+
+    def getPeers(self):
+        '''return all edge-adjacent corners'''
+        peers = []
+        for e in self.getEdges():
+            peers.append( e.otherCorner(self) )
+        return peers
 
     def tileDistance(self):
         ctiles = cornersToTiles[self]
@@ -173,6 +224,7 @@ class Corner(object):
             edge.finish()
         
 
+#------------------------------------------------------------------------------
 class Tile(object):
     def __init__(self):
         self.pip = None

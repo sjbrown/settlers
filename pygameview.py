@@ -1,6 +1,8 @@
 #! /usr/bin/env python
 
+import sys
 import time
+import string
 
 import pygame
 import pygame.sprite
@@ -10,6 +12,7 @@ import events
 import catan
 import mapmodel
 import textrect
+from mapmodel import walk_corners_along_tile
 
 tileGroup = pygame.sprite.RenderUpdates()
 tileModelToSprite = {}
@@ -87,31 +90,6 @@ def vect_scal_mult(v1, s):
     return v1[0]*s, v1[1]*s
 
 
-#------------------------------------------------------------------------------
-def walk_corners_along_tile(tile, visitFn, firstCorner=None):
-    corners = tile.corners[:] # copy
-
-    if firstCorner:
-        corner = firstCorner
-        corners.remove(corner)
-    else:
-        corner = corners.pop(0)
-    visitFn(corner, None)
-
-    while corners:
-        for edge in corner.edges:
-            if tile not in edge.tiles:
-                continue
-
-            nextCorner = (edge.corners - [corner])[0]
-            if set(edge.corners) == set(corner, nextCorner):
-                continue
-
-            corner = nextCorner
-            corners.remove(corner)
-            visitFn(corner, edge)
-            break
-
 
 #------------------------------------------------------------------------------
 class CPUSpinnerController:
@@ -160,6 +138,14 @@ class KeyboardController:
                         ev = events.Quit()
                 else:
                     ev = ('KeyDown', event.key, event.unicode, event.mod)
+            elif event.type == MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    events.post('MouseLeftDown', pos=event.pos)
+            elif event.type == MOUSEBUTTONUP:
+                if event.button == 1:
+                    events.post('MouseLeftUp', pos=event.pos)
+            elif event.type == MOUSEMOTION:
+                events.post('MouseMotion', pos=event.pos, buttons=event.buttons)
             if ev:
                 if isinstance(ev, tuple):
                     events.post( *ev )
@@ -238,7 +224,7 @@ class Console(EasySprite):
     def onKeyDown(self, keycode, keyletter, mods):
         if keycode == K_BACKSPACE:
             self.inText['text'] = self.inText['text'][:-2] +'|'
-        if keycode == K_RETURN:
+        elif keycode == K_RETURN:
             statement = self.inText['text'][:-1]
             self.inText['text'] = '|'
             try:
@@ -246,7 +232,7 @@ class Console(EasySprite):
             except Exception, ex:
                 out = str(ex)
                 self.outText['text'] = out
-        else:
+        elif keyletter in string.printable:
             self.inText['text'] = self.inText['text'][:-1] + keyletter +'|'
         
     #----------------------------------------------------------------------
@@ -311,6 +297,27 @@ class DiceButton(EasySprite):
     #----------------------------------------------------------------------
     def onDiceRoll(self, rollValue):
         self.diceText['text'] = str(rollValue)
+
+#------------------------------------------------------------------------------
+class ItemSprite(EasySprite):
+    def __init__(self, itemLetter, thing):
+        self.thing = thing
+        self.image = font_render(itemLetter, color=thing.owner.color)
+
+#------------------------------------------------------------------------------
+class SettlementSprite(ItemSprite):
+    def __init__(self, settlement):
+        ItemSprite.__init__(self, 'S', settlement)
+
+#------------------------------------------------------------------------------
+class CitySprite(ItemSprite):
+    def __init__(self, city):
+        ItemSprite.__init__(self, 'C', city)
+
+#------------------------------------------------------------------------------
+class RoadSprite(ItemSprite):
+    def __init__(self, road):
+        ItemSprite.__init__(self, 'R', road)
 
 
 #------------------------------------------------------------------------------
@@ -421,18 +428,30 @@ class Corner(EasySprite):
         EasySprite.__init__(self)
         self.image = EasySurface( (22,22) )
         self.rect = self.image.get_rect()
-        r = self.rect
-
-        self.image.fill( (0,255,28, 128) )
-        text = corner.name
-        textImg = font_render(text, size=15, color=(5,0,0))
-        self.image.blit( textImg, r.topleft )
-
         self.corner = corner
+
+        self.hintlighted = False
+        self.highlighted = False
+
+        self.drawBg()
+
         cornerGroup.add(self)
         cornerModelToSprite[corner] = self
 
+        events.registerListener(self)
         self.dirty = True
+
+    def drawBg(self):
+        if self.highlighted:
+            bgcolor = (0,255,28, 250)
+        elif self.hintlighted:
+            bgcolor = (0,255,28, 200)
+        else:
+            bgcolor = (0,255,28, 128)
+        self.image.fill( bgcolor )
+        text = self.corner.name
+        textImg = font_render(text, size=15, color=(5,0,0))
+        self.image.blit( textImg, (0,0) )
 
     def update(self):
         if not self.dirty:
@@ -442,6 +461,16 @@ class Corner(EasySprite):
             eSprite = edgeModelToSprite.get(e)
             if eSprite:
                 eSprite.dirty = True
+
+        self.drawBg()
+
+        if self.corner.stuff:
+            thing = self.corner.stuff[0]
+            if isinstance(thing, catan.Settlement):
+                txtImg = SettlementSprite(thing).image
+            if isinstance(thing, catan.City):
+                txtImg = CitySprite(thing).image
+            self.image.blit( txtImg, (8,8) )
 
         self.move_to_absolute_position()
         self.dirty = False
@@ -453,8 +482,38 @@ class Corner(EasySprite):
         tSprite = tileModelToSprite[tile]
         rel_pos = tSprite.cornerPositions[idx]
         abs_pos = vect_add(tSprite.topleft, rel_pos)
-        self.move_ip(abs_pos)
+        self.topleft = (abs_pos)
 
+    def onItemPlaced(self, item):
+        if self.highlighted:
+            self.highlighted = False
+            self.dirty = True
+        if self.hintlighted:
+            self.hintlighted = False
+            self.dirty = True
+        if item.location == self.corner:
+            self.dirty = True
+
+    def onPlayerPlacing(self, player, item):
+        if isinstance(player, catan.HumanPlayer):
+            if self.corner in player.findFreeCornersForSettlement():
+                self.hintlighted = True
+                self.dirty = True
+
+    def onMouseMotion(self, pos, buttons):
+        if self.hintlighted:
+            if self.rect.collidepoint(pos):
+                self.highlighted = True
+                self.dirty = True
+            else:
+                self.highlighted = False
+                self.dirty = True
+        
+    def onMouseLeftDown(self, pos):
+        if self.highlighted:
+            if self.rect.collidepoint(pos):
+                events.post('ClickCorner', self.corner)
+                
 #------------------------------------------------------------------------------
 class Edge(EasySprite):
     def __init__(self, edge):
@@ -470,6 +529,9 @@ class Edge(EasySprite):
             print '??'
             return
 
+        self.hintlighted = False
+        self.highlighted = False
+
         c1, c2 = self.edge.corners
         cSprite = cornerModelToSprite[c1]
         r1 = cSprite.rect
@@ -484,6 +546,8 @@ class Edge(EasySprite):
         norm_rect.normalize()
         self.image = EasySurface(self.rect)
         self.image.fill(blue)
+
+        events.registerListener(self)
 
         self.dirty = True
 
@@ -507,12 +571,51 @@ class Edge(EasySprite):
         norm_rect.normalize()
         self.image = EasySurface(self.rect)
 
+        if self.highlighted:
+            color = (100,100,255, 255)
+        elif self.hintlighted:
+            color = (0,0,255, 255)
+        else:
+            color = (0,0,200, 255)
+
         #print 'drawing edge from, to', c1Sprite.center, c2Sprite.center
-        pygame.draw.aaline(self.image, blue,
+        pygame.draw.aaline(self.image, color,
                            vect_diff(c1Sprite.center, self.rect.topleft),
                            vect_diff(c2Sprite.center, self.rect.topleft))
 
+        if self.edge.stuff:
+            item = self.edge.stuff[0]
+            txtImg = RoadSprite(item).image
+            self.image.blit( txtImg, vect_diff(self.rect.center, self.rect.topleft))
+
         self.dirty = False
+
+    def onItemPlaced(self, item):
+        if self.hintlighted or self.highlighted:
+            self.hintlighted = False
+            self.highlighted = False
+            self.dirty = True
+        if item.location == self.edge:
+            self.dirty = True
+
+    def onHintLightEdges(self, edges):
+        if self.edge in edges:
+            self.hintlighted = True
+            self.dirty = True
+
+    def onMouseMotion(self, pos, buttons):
+        if self.hintlighted:
+            if self.rect.collidepoint(pos):
+                self.highlighted = True
+                self.dirty = True
+            else:
+                self.highlighted = False
+                self.dirty = True
+        
+    def onMouseLeftDown(self, pos):
+        if self.highlighted:
+            if self.rect.collidepoint(pos):
+                events.post('ClickEdge', self.edge)
 
 #------------------------------------------------------------------------------
 class PygameView:
@@ -529,6 +632,8 @@ class PygameView:
         self.window.blit( self.background, (0,0) )
         pygame.display.flip()
 
+        self.showHud()
+
 
     #----------------------------------------------------------------------
     def showHud(self):
@@ -541,14 +646,11 @@ class PygameView:
         console.topleft = 10, 640
 
     #----------------------------------------------------------------------
-    def showMap(self):
+    def showMap(self, board):
         # clear the screen first
         self.background.fill( (0,0,0) )
         self.window.blit( self.background, (0,0) )
         pygame.display.flip()
-
-        catan.init()
-        board = catan.game.board
 
         center = self.window.get_rect().center
 
@@ -593,14 +695,14 @@ class PygameView:
         time.sleep(1)
 
     #----------------------------------------------------------------------
-    def onStartGame(self):
-        self.showMap()
-        self.showHud()
+    def onBoardCreated(self, board):
+        self.showMap(board)
 
     #----------------------------------------------------------------------
     def onTick(self):
         self.draw()
 
+#------------------------------------------------------------------------------
 class BoardDisplay(object):
     def __init__(self, board):
         self.board = board
@@ -646,18 +748,27 @@ class BoardDisplay(object):
 
 #------------------------------------------------------------------------------
 def main():
-
     spinner = CPUSpinnerController()
     kbController = KeyboardController()
     pygameView = PygameView()
-    events.post('StartGame')
+    catan.init()
+    events.post('PlayerJoin', catan.CPUPlayer(1))
+    events.post('PlayerJoin', catan.CPUPlayer(2))
+    events.post('PlayerJoin', catan.CPUPlayer(3))
+    events.post('PlayerJoin', catan.HumanPlayer(4))
     spinner.run()
 
+#------------------------------------------------------------------------------
+_oldExceptHook = sys.excepthook
+def customExceptHook(etype, evalue, etb):
+    print '='*60
+    print 'EXCEPTION HOOK'
+    _oldExceptHook(etype, evalue, etb)
+    import pdb
+    retval = pdb.pm()
+    print 'retval :', retval
+    
+
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception, ex:
-        print ex
-        import pdb
-        pdb.set_trace()
-        raise
+    sys.excepthook = customExceptHook
+    main()

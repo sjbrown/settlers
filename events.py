@@ -6,6 +6,15 @@
 import logging
 logging.basicConfig()
 
+DEBUG = 1
+
+if DEBUG:
+    import traceback
+    eventHistory = []
+    def interestingHistory():
+        return [ev for ev in eventHistory if ev.name not in
+                ['Tick', 'KeyDown', 'MouseMotion']]
+
 #------------------------------------------------------------------------------
 class EventManager:
     """this object is responsible for coordinating most communication
@@ -35,6 +44,10 @@ class EventManager:
         
     #----------------------------------------------------------------------
     def Post( self, event ):
+        if DEBUG:
+            # get the last three lines of code that got us here
+            stack = traceback.extract_stack()[-6:-3]
+            event.stack = stack
         self.eventQueue.append(event)
         if isinstance(event, Tick):
             # Consume the event queue every Tick.
@@ -44,22 +57,46 @@ class EventManager:
             logging.debug( "     Message: " + event.name )
 
     #----------------------------------------------------------------------
-    def ConsumeEventQueue(self):
-        i = 0
-        while i < len( self.eventQueue ):
-            event = self.eventQueue[i]
-            methodName = 'on' + event.__class__.__name__
-            for listener in self.listeners:
-                # Note: a side effect of notifying the listener
-                # could be that more events are put on the queue
-                # or listeners could Register / Unregister
-                #listener.notify( event )
+    def DeliverEvent(self, event, listener, methodName):
+        attempt = [True]
+        while attempt:
+            attempt = [] # can be turned True while in pdb
+            try:
                 if hasattr(listener, methodName):
                     method = getattr(listener, methodName)
                     method(*event.args, **event.kwargs)
                 elif hasattr(listener, 'notify'):
                     method = getattr(listener, 'notify')
                     method(event)
+            except Exception, ex:
+                import sys
+                import pdb
+                import traceback
+                print '*'*20, 'EXCEPTION', '*'*20
+                print 'To recover, make attempt true: attempt.append(1)'
+                print 'To examine the traceback where the exception happened,'
+                print 'run a postmortem: pdb.post_mortem(exc_info[2])'
+                print ''
+                exc_info = sys.exc_info()
+                traceback.print_exception(*exc_info)
+                # set attempt to True in pdb to recover
+                pdb.set_trace()
+                if not attempt:
+                    raise
+
+    #----------------------------------------------------------------------
+    def ConsumeEventQueue(self):
+        i = 0
+        while i < len( self.eventQueue ):
+            event = self.eventQueue[i]
+            if DEBUG:
+                eventHistory.append(event)
+            methodName = 'on' + event.__class__.__name__
+            for listener in self.listeners:
+                # Note: a side effect of notifying the listener
+                # could be that more events are put on the queue
+                # or listeners could Register / Unregister
+                self.DeliverEvent(event, listener, methodName)
             i += 1
             if self.listenersToAdd:
                 self.ActuallyUpdateListeners()
@@ -111,7 +148,7 @@ class Event:
 class Tick(Event):
     def __init__(self):
         Event.__init__(self)
-        self.name = "CPU Tick Event"
+        self.name = "Tick"
 
 class Quit(Event):
     def __init__(self):

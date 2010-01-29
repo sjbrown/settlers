@@ -20,8 +20,9 @@ class Countdown(object):
 
 class StageChange(events.Event):
     def __init__(self, newStage):
-        events.Event.__init__(self)
+        events.Event.__init__(self, newStage)
         self.newStage = newStage
+        print self
     def __repr__(self):
         return '<StageChange Event %s>' % self.newStage
     __str__ = __repr__
@@ -73,14 +74,12 @@ class EventNotAllowedAtThisStage(Exception): pass
 def allowedDuring(*allowedStages):
     def decoratr(fn):
         def wrappedfn(self, *args):
-            print 'called ', fn
-            print 'stage was', self.stage
-            print 'supposed to be in', allowedStages
+            #print 'called ', fn
+            #print 'stage was', self.stage
+            #print 'supposed to be in', allowedStages
             if self.stage not in allowedStages:
                 raise EventNotAllowedAtThisStage(fn.__name__, self.stage, allowedStages)
-            print 'start with', args
             retval = fn(self, *args)
-            print 'stop'
             return retval
         wrappedfn.__name__ = fn.__name__
         return wrappedfn
@@ -275,17 +274,34 @@ class Board(object):
 class Game(object):
     def __init__(self):
         self.state = GameState()
+        self.dice = Dice()
         self.board = None
 
     def onBoardCreated(self, board):
         self.board = board
+
+class Dice(object):
+    def __init__(self):
+        events.registerListener(self)
+
+    def onDiceRollRequest(self, player):
+        import random
+        a = random.randrange(1,7)
+        b = random.randrange(1,7)
+        if player != game.state.activePlayer:
+            print 'illegal dice roll request', player
+        else:
+            print 'Dice roll:', a, b
+            events.post('DiceRoll', a+b)
+        
 
 class Player(object):
     def __init__(self, identifier):
         self.identifier = identifier
         i = int(identifier)
         self.color = (50*i, 10, (255-40*i))
-        self.stuff = []
+        self.items = []
+        self.cards = []
         self.latestItem = None
         self.activeItem = None
         events.registerListener(self)
@@ -297,7 +313,7 @@ class Player(object):
 
     def add(self, item):
         item.owner = self
-        self.stuff.append(item)
+        self.items.append(item)
         self.activeItem = item
         events.post('PlayerPlacing', self, item)
 
@@ -354,10 +370,20 @@ class CPUPlayer(Player):
         self.latestItem = self.activeItem
         self.activeItem = None
 
+    def rollDice(self):
+        # might want to decide whether to use a Soldier Card here
+        events.post('DiceRollRequest', self)
+
     def onPlayerPlacing(self, player, item):
         if game.state.activePlayer == self:
             if game.state.stage == Stages.initialPlacement:
                 self.doInitialPlacement()
+
+    def onStageChange(self, newStage):
+        print self, 'sees new stage', newStage
+        if game.state.activePlayer == self:
+            if game.state.stage == Stages.roll:
+                self.rollDice()
 
 game = None
 

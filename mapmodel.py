@@ -228,6 +228,7 @@ class Corner(BuildableLocation):
 class Tile(object):
     def __init__(self):
         self.pip = None
+        self.robber = None
         self.terrain = None
         self.corners = []
         self.edges = []

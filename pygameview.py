@@ -165,6 +165,7 @@ class KeyboardController:
 class EndTurnButton(EasySprite):
     def __init__(self):
         EasySprite.__init__(self)
+        events.registerListener(self)
         self.image = EasySurface( (150,50) )
         self.rect = self.image.get_rect()
         r = self.rect.move(0,0)
@@ -176,6 +177,12 @@ class EndTurnButton(EasySprite):
         hudGroup.add(self)
 
         self.dirty = True
+
+    #----------------------------------------------------------------------
+    def onMouseLeftDown(self, pos):
+        if self.rect.collidepoint(pos):
+            events.post('TurnFinishRequest', humanPlayer)
+
 
 #------------------------------------------------------------------------------
 class Console(EasySprite):
@@ -307,6 +314,11 @@ class DiceButton(EasySprite):
     def onDiceRoll(self, rollValue):
         self.diceText['text'] = str(rollValue)
 
+    #----------------------------------------------------------------------
+    def onMouseLeftDown(self, pos):
+        if self.rect.collidepoint(pos):
+            events.post('DiceRollRequest', humanPlayer)
+
 #------------------------------------------------------------------------------
 class ItemSprite(EasySprite):
     def __init__(self, itemLetter, thing):
@@ -333,6 +345,7 @@ class RoadSprite(ItemSprite):
 class Tile(EasySprite):
     def __init__(self, tile):
         EasySprite.__init__(self)
+        events.registerListener(self)
         self.image = EasySurface( (100,100) )
         self.rect = self.image.get_rect()
         self.dirty = True
@@ -408,9 +421,17 @@ class Tile(EasySprite):
             textImg = font_render(str(self.tile.pip.value), size=size)
             blit_at_center(self.image, textImg)
 
+        # draw the robber
+        if self.tile.robber:
+            textImg = font_render('X', color=black, size=36)
+            blit_at_center(self.image, textImg)
+
         #self.debug_draw()
 
         self.dirty = False
+
+    def onRobberPlaced(self, *args):
+        self.dirty = True
 
     def debug_draw(self):
         for i, c in enumerate(self.tile.corners):
@@ -509,6 +530,9 @@ class Corner(EasySprite):
         if item.location == self.corner:
             self.dirty = True
 
+    def onRobberPlaced(self, *args):
+        self.dirty = True
+
     def onPlayerPlacing(self, player, item):
         if isinstance(player, catan.HumanPlayer):
             if self.corner in player.findFreeCornersForSettlement():
@@ -534,6 +558,7 @@ class Edge(EasySprite):
     def __init__(self, edge):
         #print 'making edge', edge.name
         EasySprite.__init__(self)
+        events.registerListener(self)
 
         self.edge = edge
 
@@ -561,8 +586,6 @@ class Edge(EasySprite):
         norm_rect.normalize()
         self.image = EasySurface(self.rect)
         self.image.fill(blue)
-
-        events.registerListener(self)
 
         self.dirty = True
 
@@ -617,6 +640,9 @@ class Edge(EasySprite):
         if self.edge in edges:
             self.hintlighted = True
             self.dirty = True
+
+    def onRobberPlaced(self, *args):
+        self.dirty = True
 
     def onMouseMotion(self, pos, buttons):
         if self.hintlighted:
@@ -725,8 +751,6 @@ class PygameView:
             pos = self.opponentDisplayPositions.pop(0)
             playerDisplay.topleft = pos
 
-
-
     #----------------------------------------------------------------------
     def onTick(self):
         self.draw()
@@ -782,8 +806,11 @@ class PlayerDisplay(EasySprite):
         self.rect = self.image.get_rect()
 
         self.player = player
+        self.active = False
 
         self.drawBg()
+
+        events.registerListener(self)
 
         hudGroup.add(self)
         self.dirty = True
@@ -794,6 +821,8 @@ class PlayerDisplay(EasySprite):
         r = self.rect.move(0,0)
         r.topleft = 0,0
         pygame.draw.rect(self.image, blue, r, 8)
+        if self.active:
+            pygame.draw.rect(self.image, (200,200,255), r, 1)
 
         txtImg = font_render(str(self.player.identifier), color=(0,0,0))
         self.image.blit(txtImg, r.midtop)
@@ -804,12 +833,11 @@ class PlayerDisplay(EasySprite):
         r.topleft = 0,0
 
         cards = self.player.cards
-        cardPos = (2,2)
         for i, card in enumerate(cards):
             cardImg = pygame.Surface( (10,16) )
             cardImg.fill( card_colors[card.__class__] )
             pygame.draw.rect(cardImg, white, cardImg.get_rect(), 1)
-            cardPos = vect_add(cardPos, (3*i,3*i))
+            cardPos = vect_add((2,2), (3*i,3*i))
             self.image.blit(cardImg, cardPos)
 
     #----------------------------------------------------------------------
@@ -817,10 +845,22 @@ class PlayerDisplay(EasySprite):
         self.drawBg()
         self.drawCards()
 
+    #----------------------------------------------------------------------
+    def onStageChange(self, newStage):
+        if newStage == catan.Stages.preRollSoldier:
+            if catan.game.state.activePlayer == self.player:
+                self.active = True
+                self.dirty = True
+            else:
+                self.active = False
+                self.dirty = True
 
+
+humanPlayer = None
 
 #------------------------------------------------------------------------------
 def main():
+    global humanPlayer
     spinner = CPUSpinnerController()
     kbController = KeyboardController()
     pygameView = PygameView()
@@ -828,7 +868,8 @@ def main():
     events.post('PlayerJoin', catan.CPUPlayer(1))
     events.post('PlayerJoin', catan.CPUPlayer(2))
     events.post('PlayerJoin', catan.CPUPlayer(3))
-    events.post('PlayerJoin', catan.HumanPlayer(4))
+    humanPlayer = catan.HumanPlayer(4)
+    events.post('PlayerJoin', humanPlayer)
     spinner.run()
 
 #------------------------------------------------------------------------------

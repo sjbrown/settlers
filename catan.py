@@ -207,14 +207,30 @@ class Road(object):
 
 class Robber(object): pass
 
-class Terrain(object): pass
+class Card(object): pass
+class Stone(Card): pass
+class Brick(Card): pass
+class Grain(Card): pass
+class Sheep(Card): pass
+class Wood(Card): pass
 
-class Mountain(Terrain): pass
-class Mud(Terrain): pass
-class Wheat(Terrain): pass
-class Grass(Terrain): pass
-class Forest(Terrain): pass
+class Terrain(object): pass
 class Desert(Terrain): pass
+class Mountain(Terrain):
+    def getCardClass(self):
+        return Stone
+class Mud(Terrain):
+    def getCardClass(self):
+        return Brick
+class Wheat(Terrain):
+    def getCardClass(self):
+        return Grain
+class Grass(Terrain):
+    def getCardClass(self):
+        return Sheep
+class Forest(Terrain):
+    def getCardClass(self):
+        return Wood
 
 terrainClasses = [Wheat]*4 + [Mud]*3 + [Mountain]*3 + [Grass]*4 + [Forest]*4 + [Desert]
 
@@ -277,17 +293,39 @@ class Game(object):
         self.dice = Dice()
         self.board = None
 
+        events.registerListener(self)
+
     def onBoardCreated(self, board):
         self.board = board
+
+    def onStageChange(self, newStage):
+        if game.state.stage == Stages.cardHarvest:
+            for tile in self.board.tiles:
+                if tile.pip == None:
+                    continue
+                if tile.pip.value == sum(self.dice.lastRoll):
+                    cardClass = tile.terrain.getCardClass()
+                    for corner in tile.corners:
+                        for settlement in corner.stuff:
+                            owner = settlement.owner
+                            if isinstance(settlement, City):
+                                # Cities get 2 cards
+                                cards = [cardClass(), cardClass()]
+                            else:
+                                # Regular settlements get 1 card
+                                cards = [cardClass()]
+                            events.post('Harvest', cards, tile, owner)
 
 class Dice(object):
     def __init__(self):
         events.registerListener(self)
+        self.lastRoll = None
 
     def onDiceRollRequest(self, player):
         import random
         a = random.randrange(1,7)
         b = random.randrange(1,7)
+        self.lastRoll = (a,b)
         if player != game.state.activePlayer:
             print 'illegal dice roll request', player
         else:
@@ -330,6 +368,10 @@ class Player(object):
         corner = settlement.location
         edges = corner.getEdges()
         return [e for e in edges if not e.stuff]
+
+    def onHarvest(self, cards, sourceTile, recipient):
+        if recipient == self:
+            self.cards += cards
 
 class HumanPlayer(Player):
 

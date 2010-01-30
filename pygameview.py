@@ -30,10 +30,19 @@ terrain_colors = {
     catan.Forest:  (0,200,0),
     catan.Desert:  (240,240,200),
 }
+card_colors = {
+    catan.Stone: terrain_colors[catan.Mountain],
+    catan.Brick: terrain_colors[catan.Mud],
+    catan.Grain: terrain_colors[catan.Wheat],
+    catan.Sheep: terrain_colors[catan.Grass],
+    catan.Wood:  terrain_colors[catan.Forest],
+}
 
 red = (255,0,0)
 green = (0,255,0)
 blue = (0,0,255)
+black = (0,0,0)
+white = (255,255,255)
 
 # -----------------------------------------------------------------------------
 class EasySurface(pygame.Surface):
@@ -390,8 +399,14 @@ class Tile(EasySprite):
 
         # draw the tile name
         text = self.tile.name
-        textImg = font_render(text)
-        blit_at_center(self.image, textImg)
+        textImg = font_render(text, color=(0,0,0))
+        self.image.blit(textImg, vect_add(r.midtop,(0,20)))
+
+        # draw the pip
+        if self.tile.pip:
+            size = 30 - 2*abs(7 - self.tile.pip.value)
+            textImg = font_render(str(self.tile.pip.value), size=size)
+            blit_at_center(self.image, textImg)
 
         #self.debug_draw()
 
@@ -632,6 +647,8 @@ class PygameView:
         self.window.blit( self.background, (0,0) )
         pygame.display.flip()
 
+        self.opponentDisplayPositions = [ (0,5), (100,0), (200,5) ]
+
         self.showHud()
 
 
@@ -699,6 +716,18 @@ class PygameView:
         self.showMap(board)
 
     #----------------------------------------------------------------------
+    def onPlayerJoin(self, player):
+        playerDisplay = PlayerDisplay(player)
+        if isinstance(player, catan.HumanPlayer):
+            playerDisplay.topleft = 350, 660
+        else:
+            # CPU Player
+            pos = self.opponentDisplayPositions.pop(0)
+            playerDisplay.topleft = pos
+
+
+
+    #----------------------------------------------------------------------
     def onTick(self):
         self.draw()
 
@@ -743,6 +772,50 @@ class BoardDisplay(object):
                         otherTileS.setCenterFromEdge(edge, tSprite)
 
         walk_corners_along_tile(tile, visitFn)
+
+#------------------------------------------------------------------------------
+class PlayerDisplay(EasySprite):
+    def __init__(self, player):
+        EasySprite.__init__(self)
+        events.registerListener(self)
+        self.image = EasySurface( (80,80) )
+        self.rect = self.image.get_rect()
+
+        self.player = player
+
+        self.drawBg()
+
+        hudGroup.add(self)
+        self.dirty = True
+
+    #----------------------------------------------------------------------
+    def drawBg(self):
+        self.image.fill( (0,0,20) )
+        r = self.rect.move(0,0)
+        r.topleft = 0,0
+        pygame.draw.rect(self.image, blue, r, 8)
+
+        txtImg = font_render(str(self.player.identifier), color=(0,0,0))
+        self.image.blit(txtImg, r.midtop)
+
+    #----------------------------------------------------------------------
+    def drawCards(self):
+        r = self.rect.move(0,0)
+        r.topleft = 0,0
+
+        cards = self.player.cards
+        cardPos = (2,2)
+        for i, card in enumerate(cards):
+            cardImg = pygame.Surface( (10,16) )
+            cardImg.fill( card_colors[card.__class__] )
+            pygame.draw.rect(cardImg, white, cardImg.get_rect(), 1)
+            cardPos = vect_add(cardPos, (3*i,3*i))
+            self.image.blit(cardImg, cardPos)
+
+    #----------------------------------------------------------------------
+    def update(self):
+        self.drawBg()
+        self.drawCards()
 
 
 

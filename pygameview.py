@@ -742,6 +742,10 @@ class PygameView:
         self.showMap(board)
 
     #----------------------------------------------------------------------
+    def onRefreshState(self):
+        self.showMap(catan.game.board)
+
+    #----------------------------------------------------------------------
     def onPlayerJoin(self, player):
         playerDisplay = PlayerDisplay(player)
         if isinstance(player, catan.HumanPlayer):

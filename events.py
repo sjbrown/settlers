@@ -45,6 +45,7 @@ class EventManager:
     #----------------------------------------------------------------------
     # NOTE: this production is not draw-friendly.
     def post( self, event ):
+        print 'ev posted', event
         if DEBUG:
             # get the last three lines of code that got us here
             stack = traceback.extract_stack()[-6:-3]
@@ -88,6 +89,7 @@ class EventManager:
     #----------------------------------------------------------------------
     # NOTE: this consumption is not draw-friendly.
     def consumeEventQueue(self):
+        print 'consuming'
         i = 0
         while i < len( self.eventQueue ):
             event = self.eventQueue[i]

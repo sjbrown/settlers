@@ -131,6 +131,7 @@ class GameState(object):
 
     @allowedDuring(Stages.waitingForPlayers)
     def onPlayerJoin(self, player):
+        print 'p jed', player
         self.game.players.append(player)
         if len(self.game.players) == 4:
             self.stage = Stages.setup
@@ -353,6 +354,11 @@ class Board(object):
             self.tiles.append(tile)
 
         events.post('BoardCreated', self)
+
+    def populateGraphicalPositions(self):
+        for i in range(len(self.tiles)):
+            tile = mapmodel.allTiles[Board.spiralWalk[i]-1]
+            tile.graphicalPosition = Board.graphicalPositions[i]
 
 class Game(object):
     def __init__(self):

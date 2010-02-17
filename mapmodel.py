@@ -77,14 +77,18 @@ class Edge(BuildableLocation):
         innermostCorner = min(self.corners)
         return innermostCorner.tileDistance()
 
-    def addTile(self, tile):
+    def addTile(self, tile, recurse=True):
         assert isinstance(tile, Tile)
         if self not in edgesToTiles:
             edgesToTiles[self] = [tile]
         else:
+            if tile in edgesToTiles[self]:
+                print 'WARN adding tile %s to edge %s again' % (tile, self)
+                return
             edgesToTiles[self].append(tile)
         self.tiles.append(tile)
-        tile.addEdge(self)
+        if recurse:
+            tile.addEdge(self)
         assert len(self.tiles) <= 2
 
     def addCorner(self, corner):
@@ -126,7 +130,8 @@ class Edge(BuildableLocation):
                 result = findEdgeBetween(*combo)
                 if not result:
                     t1, t2 = combo
-                    self.tiles = [t1, t2]
+                    self.addTile(t1, recurse=False)
+                    self.addTile(t2, recurse=False)
                     t1.addEdge(self)
                     t2.addEdge(self)
                     return
@@ -204,13 +209,14 @@ class Corner(BuildableLocation):
         else:
             cornersToTiles[self].append(tile)
 
-    def addEdge(self, edge):
+    def addEdge(self, edge, recurse=True):
         self.edges.append(edge)
         if edge.corners:
             if (self.cornerDistance == None
                 or edge.corners[0].cornerDistance < self.cornerDistance):
                 self.cornerDistance = edge.corners[0].cornerDistance + 1
-        edge.addCorner(self)
+        if recurse:
+            edge.addCorner(self)
 
     def finish(self):
         if self.cornerDistance >= RINGS*2:
@@ -252,6 +258,10 @@ class Tile(object):
         return self is other
     def __ne__(self, other):
         return not self == other
+
+    def getIsCenter(self):
+        return self == centerTile
+    isCenter = property(getIsCenter)
 
     def addCorner(self, corner, findSpot=False):
         assert corner not in self.corners

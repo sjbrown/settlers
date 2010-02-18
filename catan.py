@@ -392,10 +392,12 @@ class Game(object):
 
 
 class Player(object):
+    colors = [ (250,0,0), (250,250,250), (250,150,0), (10,20,250) ]
     def __init__(self, identifier):
         self.identifier = identifier
         i = int(identifier)
-        self.color = (50*i, 10, (255-40*i))
+        #self.color = (50*i, 10, (255-40*i))
+        self.color = Player.colors[i-1]
         self.items = []
         self.cards = []
         self.latestItem = None

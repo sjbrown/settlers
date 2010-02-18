@@ -1,4 +1,5 @@
 
+import events
 from catan import *
 from mapmodel import Tile, Edge, Corner
 from twisted.spread import pb
@@ -69,6 +70,11 @@ class Serializable:
     '''
     registry_attrs = [] # overriden by subclasses (implementors)
 
+    def preUnserialize(self):
+        pass # overriden by subclasses (implementors)
+    def postUnserialize(self):
+        pass # overriden by subclasses (implementors)
+
     def getStateToCopy(self, registry):
         d = {}
         for attr in self.copyworthy_attrs:
@@ -79,6 +85,7 @@ class Serializable:
         return d
 
     def setCopyableState(self, stateDict, registry):
+        self.preUnserialize()
         neededObjIDs = []
 
         for attrName, value in stateDict.items():
@@ -96,6 +103,7 @@ class Serializable:
             else:
                 setattr(self, attrName, value)
 
+        self.postUnserialize()
         return neededObjIDs
 
     def genericUnserialize(self, stateDict, registry, attrName, value):
@@ -207,6 +215,10 @@ class CopyableGame(Serializable):
     copyworthy_attrs = ['state', 'players', 'board']
     registry_attrs = ['state', 'board']
 
+    def postUnserialize(self):
+        self.dice = Dice()
+        events.registerListener(self)
+
     def unserialize_players(self, stateDict, registry):
         neededObjIDs = []
         self.players = []
@@ -227,10 +239,14 @@ class CopyableGameState(Serializable):
     copyworthy_attrs = ['game', '_stage', '_activePlayer',
                         'initialPlacementDirection']
     registry_attrs = ['game', '_activePlayer']
+
     def getStateToCopy(self, registry):
-        if self._stage in [ Stages.waitingForPlayers, Stages.setup]:
+        if self._stage in [Stages.waitingForPlayers, Stages.setup]:
             raise Exception('Can not save game that has not started')
         return Serializable.getStateToCopy(self, registry)
+
+    def postUnserialize(self):
+        events.registerListener(self)
 
 MixInClass( GameState, CopyableGameState )
 
@@ -238,6 +254,9 @@ MixInClass( GameState, CopyableGameState )
 class CopyableRobber(Serializable):
     copyworthy_attrs = ['_tile']
     registry_attrs = ['_tile']
+
+    def postUnserialize(self):
+        events.registerListener(self)
 
 MixInClass( Robber, CopyableRobber )
 
@@ -281,7 +300,6 @@ class CopyableTerrain(Serializable):
     def setCopyableState(self, stateDict, registry):
         import catan
         cls = getattr(catan, stateDict['cls'])
-        print 'CLS IS', cls, cls.__bases__
         self.__class__ = cls
         return []
 
@@ -370,6 +388,7 @@ class CopyableBoard(Serializable):
                 tile.addEdge(e)
 
         self.populateGraphicalPositions()
+        events.registerListener(self)
 
         return neededObjIDs +\
                Serializable.setCopyableState(self, stateDict, registry)
@@ -468,6 +487,11 @@ class CopyablePlayer(Serializable):
                 neededObjIDs.append(value)
 
         return neededObjIDs
+
+    def postUnserialize(self):
+        self.activeItem = None
+        events.registerListener(self)
+
 
 MixInClass( Player, CopyablePlayer )
 

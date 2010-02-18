@@ -679,6 +679,10 @@ class PygameView:
 
 
     #----------------------------------------------------------------------
+    def refresh(self):
+        self.opponentDisplayPositions = [ (0,5), (100,0), (200,5) ]
+
+    #----------------------------------------------------------------------
     def showHud(self):
         dbutton = DiceButton()
         dbutton.topleft = 600, 300
@@ -743,7 +747,17 @@ class PygameView:
 
     #----------------------------------------------------------------------
     def onRefreshState(self):
+        self.refresh()
         self.showMap(catan.game.board)
+        for player in catan.game.players:
+            playerDisplay = PlayerDisplay(player)
+            if isinstance(player, catan.HumanPlayer):
+                playerDisplay.topleft = 350, 660
+            else:
+                # CPU Player
+                pos = self.opponentDisplayPositions.pop(0)
+                playerDisplay.topleft = pos
+
 
     #----------------------------------------------------------------------
     def onPlayerJoin(self, player):

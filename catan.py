@@ -77,13 +77,17 @@ class EventNotAllowedAtThisStage(Exception): pass
 
 def allowedDuring(*allowedStages):
     def decoratr(fn):
-        def wrappedfn(self, *args):
+        def wrappedfn(*args):
+            if not game:
+                raise ValueError('Game must be initialized before a function'
+                                 ' decorated with allowedDuring can be called')
             #print 'called ', fn
-            #print 'stage was', self.stage
             #print 'supposed to be in', allowedStages
-            if self.stage not in allowedStages:
-                raise EventNotAllowedAtThisStage(fn.__name__, self.stage, allowedStages)
-            retval = fn(self, *args)
+            if game.state.stage not in allowedStages:
+                raise EventNotAllowedAtThisStage(fn.__name__,
+                                                 game.state.stage,
+                                                 allowedStages)
+            retval = fn(*args)
             return retval
         wrappedfn.__name__ = fn.__name__
         return wrappedfn
@@ -175,7 +179,8 @@ class GameState(object):
             print 'NotImp'
 
     @allowedDuring(Stages.preRollSoldier)
-    def onDiceRoll(self, rollValue):
+    def onDiceRoll(self, d1, d2):
+        rollValue = d1+d2
         if rollValue == 7:
             if any([len(player.cards) > 7 for player in self.game.players]):
                 self.stage = Stages.sevenRolledDiscard
@@ -187,8 +192,9 @@ class GameState(object):
 
     @allowedDuring(Stages.sevenRolledDiscard)
     def onDiscard(self, player):
-        if not [len(player.cards) > 7 for player in self.game.players]:
-            self.stage = rolledRobberPlacement
+        if any([len(player.cards) > 7 for player in self.game.players]):
+            return # someone still needs to discard
+        self.stage = Stages.rolledRobberPlacement
 
     @allowedDuring(Stages.setup, Stages.rolledRobberPlacement, Stages.soldierCard)
     def onRobberPlaced(self, robber):
@@ -205,6 +211,11 @@ class GameState(object):
                 events.post('Rob', thief, victim, card)
             self.stage = Stages.playerTurn
 
+    @allowedDuring(Stages.chooseVictim)
+    def onSkipRobRequest(self, thief):
+        if thief == self.activePlayer:
+            self.stage = Stages.playerTurn
+
     @allowedDuring(Stages.cardHarvest)
     def onCardHarvestOver(self):
         self.stage = Stages.playerTurn
@@ -219,6 +230,7 @@ class GameState(object):
             self.nextPlayer()
             self.stage = Stages.preRollSoldier
 
+debugRolls = [(2,5), (1,1), (1,1), (1,1),  (3,4), (6,6)]
 class Dice(object):
     def __init__(self):
         events.registerListener(self)
@@ -226,14 +238,19 @@ class Dice(object):
 
     def onDiceRollRequest(self, player):
         import random
-        a = random.randrange(1,7)
-        b = random.randrange(1,7)
+        if debugRolls:
+            a,b = debugRolls.pop(0)
+        else:
+            a = random.randrange(1,7)
+            b = random.randrange(1,7)
         self.lastRoll = (a,b)
-        if player != game.state.activePlayer:
+        if (player != game.state.activePlayer
+            or game.state.stage not in [Stages.preRollSoldier]
+            ):
             print 'illegal dice roll request', player
         else:
             print 'Dice roll:', a, b
-            events.post('DiceRoll', a+b)
+            events.post('DiceRoll', a, b)
         
 
 class Robber(object):
@@ -241,6 +258,7 @@ class Robber(object):
         events.registerListener(self)
         self._tile = None
 
+    @allowedDuring(Stages.rolledRobberPlacement, Stages.soldierCard)
     def onRobberPlaceRequest(self, player, tile):
         if player != game.state.activePlayer:
             print 'illegal robber place request', player
@@ -272,7 +290,10 @@ class Road(object):
         self.owner = None
         self.location = None
 
-class Card(object): pass
+class Card(object):
+    def __str__(self):
+        return '<Card %s %s>' % (self.__class__.__name__, id(self))
+    __repr__ = __str__
 class Stone(Card): pass
 class Brick(Card): pass
 class Grain(Card): pass
@@ -453,6 +474,16 @@ class Player(object):
             freeTiles.append(t)
         return freeTiles
         
+    @allowedDuring(Stages.sevenRolledDiscard)
+    def onDiscardRequest(self, player, discards):
+        if self != player:
+            return
+        if not all([card in self.cards for card in discards]):
+            print 'Player tried to discard cards that he did not own'
+            return
+        for card in discards:
+            self.cards.remove(card)
+        events.post('Discard', self)
 
     def onHarvest(self, cards, sourceTile, recipient):
         if recipient == self:
@@ -517,7 +548,14 @@ class CPUPlayer(Player):
             victim = opponents[0]
             events.post('RobRequest', self, victim)
         else:
-            print 'NotImplemented'
+            events.post('SkipRobRequest', self)
+
+    def discard(self):
+        if len(self.cards) <= 7:
+            return
+        half = len(self.cards)//2 # the floor is the proper behaviour
+        discards = self.cards[half:]
+        events.post('DiscardRequest', self, discards)
 
     def onPlayerPlacing(self, player, item):
         if game.state.activePlayer == self:
@@ -528,8 +566,12 @@ class CPUPlayer(Player):
 
     def onStageChange(self, newStage):
         print self, 'sees new stage', newStage
+        if game.state.stage == Stages.sevenRolledDiscard:
+            self.discard()
+
         if game.state.activePlayer != self:
             return
+
         if game.state.stage == Stages.preRollSoldier:
             self.rollDice()
         if game.state.stage == Stages.playerTurn:

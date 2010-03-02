@@ -45,8 +45,9 @@ class EventManager:
     #----------------------------------------------------------------------
     # NOTE: this production is not draw-friendly.
     def post( self, event ):
-        print 'ev posted', event
         if DEBUG:
+            if event.name != 'MouseMotion':
+                print 'ev posted', event
             # get the last three lines of code that got us here
             stack = traceback.extract_stack()[-6:-3]
             event.stack = stack
@@ -136,6 +137,9 @@ def post_stringEvent(arg1, extraArgs, kwargs):
 
 def registerListener(listener):
     _eventManager.registerListener(listener)
+
+def unregisterListener(listener):
+    _eventManager.unregisterListener(listener)
 
 
 class Event:

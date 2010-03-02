@@ -4,6 +4,8 @@ import sys
 import time
 import string
 
+from collections import defaultdict
+
 import pygame
 import pygame.sprite
 from pygame.locals import * #the KeyboardController needs these
@@ -45,6 +47,33 @@ black = (0,0,0)
 white = (255,255,255)
 
 # -----------------------------------------------------------------------------
+class Highlightable(object):
+    def __init__(self):
+        self.dirty = True
+        self._hintlighted = False
+        self._hoverlighted = False
+
+    def getHintlight(self):
+        return self._hintlighted
+    def setHintlight(self, value):
+        self._hintlighted = value
+        self.dirty = True
+    hintlighted = property(getHintlight, setHintlight)
+
+    def getHoverlight(self):
+        return self._hoverlighted
+    def setHoverlight(self, value):
+        self._hoverlighted = value
+        self.dirty = True
+    hoverlighted = property(getHoverlight, setHoverlight)
+
+    def checkHover(self, pos):
+        if self.rect.collidepoint(pos):
+            self.hoverlighted = True
+        elif self.hoverlighted:
+            self.hoverlighted = False
+
+# -----------------------------------------------------------------------------
 class EasySurface(pygame.Surface):
     def __init__(self, sizeSpec):
         if isinstance(sizeSpec, pygame.Rect):
@@ -53,6 +82,9 @@ class EasySurface(pygame.Surface):
 
 # -----------------------------------------------------------------------------
 class EasySprite(pygame.sprite.Sprite):
+    def __init__(self, *args):
+        pygame.sprite.Sprite.__init__(self, *args)
+
     def __getattr__(self, attrname):
         try:
             return pygame.sprite.Sprite.__getattribute__(self, attrname)
@@ -73,7 +105,6 @@ class EasySprite(pygame.sprite.Sprite):
 def font_render(text, size=20, color=(255,0,0)):
     font = pygame.font.Font(None, size)
     return font.render(text, 1, color)
-        
 
 # -----------------------------------------------------------------------------
 def blit_at_center(img1, img2, rect1=None, rect2=None):
@@ -162,27 +193,98 @@ class KeyboardController:
                     events.post( ev )
 
 #------------------------------------------------------------------------------
-class EndTurnButton(EasySprite):
+class EndTurnButton(EasySprite, Highlightable):
     def __init__(self):
         EasySprite.__init__(self)
+        Highlightable.__init__(self)
         events.registerListener(self)
         self.image = EasySurface( (150,50) )
         self.rect = self.image.get_rect()
-        r = self.rect.move(0,0)
-        pygame.draw.rect(self.image, blue, r, 2)
-
-        txtImg = font_render('END TURN')
-        blit_at_center(self.image, txtImg)
-
         hudGroup.add(self)
 
-        self.dirty = True
+        self.draw()
+
+    #----------------------------------------------------------------------
+    def update(self):
+        print 'update', self, 'got called.  d:', self.dirty
+        if not self.dirty:
+            return
+        self.draw()
+
+    #----------------------------------------------------------------------
+    def draw(self):
+        print 'drawing'
+        self.image = EasySurface( (150,50) )
+        r = self.rect.move(-self.x, -self.y)
+        pygame.draw.rect(self.image, blue, r, 2)
+
+        if self.hoverlighted:
+            color = white
+        elif self.hintlighted:
+            color = (255,100,100)
+        else:
+            color = red
+        print 'dirty.  blitting', color
+        txtImg = font_render('END TURN', color=color)
+        blit_at_center(self.image, txtImg)
+
+        self.dirty = False
+
+    #----------------------------------------------------------------------
+    def onMouseMotion(self, pos, buttons):
+        print 'motion', self.rect.collidepoint(pos)
+        self.checkHover(pos)
+        print 'motion hl', self.hoverlighted
+        print 'motion d', self.dirty
 
     #----------------------------------------------------------------------
     def onMouseLeftDown(self, pos):
         if self.rect.collidepoint(pos):
             events.post('TurnFinishRequest', humanPlayer)
 
+#------------------------------------------------------------------------------
+class SaveGameButton(EasySprite, Highlightable):
+    def __init__(self):
+        EasySprite.__init__(self)
+        Highlightable.__init__(self)
+        events.registerListener(self)
+        hudGroup.add(self)
+        self.image = EasySurface( (150,50) )
+        self.rect = self.image.get_rect()
+        self.draw()
+
+    #----------------------------------------------------------------------
+    def update(self):
+        if not self.dirty:
+            return
+        self.draw()
+
+    #----------------------------------------------------------------------
+    def draw(self):
+        self.image = EasySurface( (150,50) )
+        r = self.rect.move(-self.x, -self.y)
+        pygame.draw.rect(self.image, blue, r, 2)
+
+        if self.hoverlighted:
+            color = white
+        elif self.hintlighted:
+            color = (255,100,100)
+        else:
+            color = red
+        txtImg = font_render('SAVE GAME', color=color)
+        blit_at_center(self.image, txtImg)
+
+        self.dirty = False
+
+    #----------------------------------------------------------------------
+    def onMouseMotion(self, pos, buttons):
+        self.checkHover(pos)
+
+    #----------------------------------------------------------------------
+    def onMouseLeftDown(self, pos):
+        if self.rect.collidepoint(pos):
+            import saved_game
+            saved_game.save()
 
 #------------------------------------------------------------------------------
 class Console(EasySprite):
@@ -269,7 +371,8 @@ class DiceButton(EasySprite):
         self.rect = self.image.get_rect()
 
         self.rollText = dict(text='ROLL', color=(255,0,0) )
-        self.diceText = dict(text='*', size=30, color=(255,0,0) )
+        self.diceText1 = dict(text='*', size=30, color=(255,0,0) )
+        self.diceText2 = dict(text='*', size=30, color=(255,0,0) )
 
         self.drawBg()
         self.drawText()
@@ -301,7 +404,11 @@ class DiceButton(EasySprite):
 
         r.size = 50,50
         r.topleft = 12,12
-        txtImg = font_render(**self.diceText)
+        txtImg = font_render(**self.diceText1)
+        self.image.blit(txtImg, r)
+
+        r.topleft = 92,12
+        txtImg = font_render(**self.diceText2)
         self.image.blit(txtImg, r)
 
     #----------------------------------------------------------------------
@@ -311,8 +418,9 @@ class DiceButton(EasySprite):
         self.drawText()
 
     #----------------------------------------------------------------------
-    def onDiceRoll(self, rollValue):
-        self.diceText['text'] = str(rollValue)
+    def onDiceRoll(self, d1, d2):
+        self.diceText1['text'] = str(d1)
+        self.diceText2['text'] = str(d2)
 
     #----------------------------------------------------------------------
     def onMouseLeftDown(self, pos):
@@ -342,13 +450,14 @@ class RoadSprite(ItemSprite):
 
 
 #------------------------------------------------------------------------------
-class Tile(EasySprite):
+class Tile(EasySprite, Highlightable):
     def __init__(self, tile):
         EasySprite.__init__(self)
+        Highlightable.__init__(self)
         events.registerListener(self)
+
         self.image = EasySurface( (100,100) )
         self.rect = self.image.get_rect()
-        self.dirty = True
         r = self.rect
 
         #self.image.fill( (0,255,128) )
@@ -361,6 +470,12 @@ class Tile(EasySprite):
 
         tileGroup.add(self)
         tileModelToSprite[tile] = self
+
+    def collides(self, point):
+        if not self.rect.collidepoint(point):
+            return False
+        # TODO: make this return true when the point is inside the hexagon
+        return True
 
     def calcCornerPositions(self):
         r = self.rect
@@ -409,10 +524,14 @@ class Tile(EasySprite):
         if terrain:
             color = terrain_colors[terrain.__class__]
             pygame.draw.circle(self.image, color, r.center, r.width/2)
+            if self.hintlighted:
+                color2 = [float(x)/280*255 for x in color]
+                radius2 = r.width/2 - 10
+                pygame.draw.circle(self.image, color2, r.center, radius2)
 
         # draw the tile name
         text = self.tile.name
-        textImg = font_render(text, color=(0,0,0))
+        textImg = font_render(text, color=(0,0,0, 18))
         self.image.blit(textImg, vect_add(r.midtop,(0,20)))
 
         # draw the pip
@@ -429,9 +548,6 @@ class Tile(EasySprite):
         #self.debug_draw()
 
         self.dirty = False
-
-    def onRobberPlaced(self, *args):
-        self.dirty = True
 
     def debug_draw(self):
         for i, c in enumerate(self.tile.corners):
@@ -455,30 +571,46 @@ class Tile(EasySprite):
                 self.image.blit(textImg, r.center)
             else:
                 self.image.blit(textImg, (40,14*i))
+
+    def onHintLightTiles(self, tiles):
+        if self.tile in tiles:
+            self.hintlighted = True
+            self.dirty = True
+
+    def onRobberPlaced(self, *args):
+        self.hintlighted = False
+        self.dirty = True
+
+    def onMouseLeftDown(self, pos):
+        if self.hintlighted and self.collides(pos):
+            # TODO: there is a bug here.
+            # If the user interface sends two TileClicked events immediately
+            # after another (such as if the user clicks on an overlap), the
+            # event manager will get two of these and place the robber twice
+            # consider making a special queue for UI events like clicks
+            events.post('TileClicked', self.tile)
                 
 
 #------------------------------------------------------------------------------
-class Corner(EasySprite):
+class Corner(EasySprite, Highlightable):
     def __init__(self, corner):
         #print 'making corner', corner.name
         EasySprite.__init__(self)
+        Highlightable.__init__(self)
+        events.registerListener(self)
+
         self.image = EasySurface( (22,22) )
         self.rect = self.image.get_rect()
         self.corner = corner
-
-        self.hintlighted = False
-        self.highlighted = False
 
         self.drawBg()
 
         cornerGroup.add(self)
         cornerModelToSprite[corner] = self
 
-        events.registerListener(self)
-        self.dirty = True
 
     def drawBg(self):
-        if self.highlighted:
+        if self.hoverlighted:
             bgcolor = (0,255,28, 250)
         elif self.hintlighted:
             bgcolor = (0,255,28, 200)
@@ -521,8 +653,8 @@ class Corner(EasySprite):
         self.topleft = (abs_pos)
 
     def onItemPlaced(self, item):
-        if self.highlighted:
-            self.highlighted = False
+        if self.hoverlighted:
+            self.hoverlighted = False
             self.dirty = True
         if self.hintlighted:
             self.hintlighted = False
@@ -542,22 +674,23 @@ class Corner(EasySprite):
     def onMouseMotion(self, pos, buttons):
         if self.hintlighted:
             if self.rect.collidepoint(pos):
-                self.highlighted = True
+                self.hoverlighted = True
                 self.dirty = True
             else:
-                self.highlighted = False
+                self.hoverlighted = False
                 self.dirty = True
         
     def onMouseLeftDown(self, pos):
-        if self.highlighted:
+        if self.hoverlighted:
             if self.rect.collidepoint(pos):
                 events.post('ClickCorner', self.corner)
                 
 #------------------------------------------------------------------------------
-class Edge(EasySprite):
+class Edge(EasySprite, Highlightable):
     def __init__(self, edge):
         #print 'making edge', edge.name
         EasySprite.__init__(self)
+        Highlightable.__init__(self)
         events.registerListener(self)
 
         self.edge = edge
@@ -568,9 +701,6 @@ class Edge(EasySprite):
         if len(self.edge.corners) != 2:
             print '??'
             return
-
-        self.hintlighted = False
-        self.highlighted = False
 
         c1, c2 = self.edge.corners
         cSprite = cornerModelToSprite[c1]
@@ -586,8 +716,6 @@ class Edge(EasySprite):
         norm_rect.normalize()
         self.image = EasySurface(self.rect)
         self.image.fill(blue)
-
-        self.dirty = True
 
     def update(self):
         if not self.dirty:
@@ -609,7 +737,7 @@ class Edge(EasySprite):
         norm_rect.normalize()
         self.image = EasySurface(self.rect)
 
-        if self.highlighted:
+        if self.hoverlighted:
             color = (100,100,255, 255)
         elif self.hintlighted:
             color = (0,0,255, 255)
@@ -629,9 +757,9 @@ class Edge(EasySprite):
         self.dirty = False
 
     def onItemPlaced(self, item):
-        if self.hintlighted or self.highlighted:
+        if self.hintlighted or self.hoverlighted:
             self.hintlighted = False
-            self.highlighted = False
+            self.hoverlighted = False
             self.dirty = True
         if item.location == self.edge:
             self.dirty = True
@@ -647,14 +775,14 @@ class Edge(EasySprite):
     def onMouseMotion(self, pos, buttons):
         if self.hintlighted:
             if self.rect.collidepoint(pos):
-                self.highlighted = True
+                self.hoverlighted = True
                 self.dirty = True
             else:
-                self.highlighted = False
+                self.hoverlighted = False
                 self.dirty = True
         
     def onMouseLeftDown(self, pos):
-        if self.highlighted:
+        if self.hoverlighted:
             if self.rect.collidepoint(pos):
                 events.post('ClickEdge', self.edge)
 
@@ -675,6 +803,8 @@ class PygameView:
 
         self.opponentDisplayPositions = [ (0,5), (100,0), (200,5) ]
 
+        self.showRobberCursor = False
+
         self.showHud()
 
 
@@ -688,6 +818,8 @@ class PygameView:
         dbutton.topleft = 600, 300
         ebutton = EndTurnButton()
         ebutton.topleft = 600, 440
+        ebutton = SaveGameButton()
+        ebutton.topleft = 600, 520
 
         console = Console()
         console.topleft = 10, 640
@@ -716,6 +848,14 @@ class PygameView:
         for e in catan.mapmodel.allEdges:
             eSprite = Edge(e)
             
+    #----------------------------------------------------------------------
+    def drawCursor(self):
+        if not self.showRobberCursor:
+            return []
+        pos = pygame.mouse.get_pos()
+        textImg = font_render('X', color=black, size=36)
+        self.window.blit( textImg, pos )
+        return [textImg.get_rect().move(pos)]
 
     #----------------------------------------------------------------------
     def draw(self):
@@ -734,12 +874,40 @@ class PygameView:
         dirtyRects = edgeGroup.draw( self.window )
 
         for hudSprite in hudGroup:
+            print 'calling update on ', hudSprite
             hudSprite.update()
         dirtyRects = hudGroup.draw( self.window )
 
+        dirtyRects += self.drawCursor()
 
         pygame.display.flip()
         time.sleep(1)
+
+    #----------------------------------------------------------------------
+    def onShowRobberCursor(self, player):
+        self.showRobberCursor = True
+        for tSprite in tileGroup:
+            tSprite.hintlighted = True
+            tSprite.dirty = True
+
+    #----------------------------------------------------------------------
+    def onTileClicked(self, tile):
+        if self.showRobberCursor:
+            events.post('RobberPlaceRequest', humanPlayer, tile)
+
+    #----------------------------------------------------------------------
+    def onRobberPlaced(self, *args):
+        self.showRobberCursor = False
+
+    #----------------------------------------------------------------------
+    def onShowChooseVictim(self, player, opponents):
+        cdisplay = ChooseVictimDisplay(player, opponents)
+        cdisplay.center = self.window.get_rect().center
+
+    #----------------------------------------------------------------------
+    def onShowDiscard(self, player):
+        ddisplay = DiscardDisplay(player)
+        ddisplay.center = self.window.get_rect().center
 
     #----------------------------------------------------------------------
     def onBoardCreated(self, board):
@@ -757,7 +925,6 @@ class PygameView:
                 # CPU Player
                 pos = self.opponentDisplayPositions.pop(0)
                 playerDisplay.topleft = pos
-
 
     #----------------------------------------------------------------------
     def onPlayerJoin(self, player):
@@ -816,6 +983,308 @@ class BoardDisplay(object):
         walk_corners_along_tile(tile, visitFn)
 
 #------------------------------------------------------------------------------
+class DiscardTextButton(EasySprite, Highlightable):
+    def __init__(self, pos):
+        EasySprite.__init__(self)
+        self.draw()
+        self.rect = self.image.get_rect()
+        self.rect.topleft = pos
+
+    def draw(self):
+        if self.hintlighted:
+            self.image = font_render('DISCARD', color=(255,50,50))
+        else:
+            self.image = font_render('DISCARD')
+
+    def update(self):
+        if not self.dirty:
+            return
+        self.draw()
+
+#------------------------------------------------------------------------------
+class DiscardAddButton(EasySprite):
+    def __init__(self, parent, pos, cardClass):
+        EasySprite.__init__(self)
+        self.image = font_render('+', size=50)
+        self.rect = self.image.get_rect()
+        self.rect.topleft = pos
+
+        self.cardClass = cardClass
+        self.parent = parent
+
+    #----------------------------------------------------------------------
+    def click(self):
+        group = set([card for card in self.parent.player.cards
+                     if isinstance(card, self.cardClass)])
+
+        undiscarded = group.difference(set(self.parent._discards))
+        if undiscarded:
+            self.parent.addDiscard(undiscarded.pop())
+
+#------------------------------------------------------------------------------
+class DiscardRemoveButton(EasySprite):
+    def __init__(self, parent, pos, cardClass):
+        EasySprite.__init__(self)
+        self.image = font_render('-', size=50)
+        self.rect = self.image.get_rect()
+        self.rect.topleft = pos
+
+        self.cardClass = cardClass
+        self.parent = parent
+
+    #----------------------------------------------------------------------
+    def click(self):
+        group = set([card for card in self.parent.player.cards
+                     if isinstance(card, self.cardClass)])
+
+        discarded = group.intersection(set(self.parent._discards))
+        if discarded:
+            self.parent.removeDiscard(discarded.pop())
+
+
+#------------------------------------------------------------------------------
+class DiscardDisplay(EasySprite):
+    def __init__(self, player):
+        EasySprite.__init__(self)
+        events.registerListener(self)
+        self.image = EasySurface( (280,80) )
+        self.rect = self.image.get_rect()
+
+        self.player = player
+
+        self._discards = []
+
+        self.addButtons = {}
+        self.removeButtons = {}
+
+        self.drawBg()
+        self.drawCards()
+
+        self.dButton = DiscardTextButton((200,60))
+        self.drawButtons()
+
+        hudGroup.add(self)
+        self.dirty = True
+
+    #----------------------------------------------------------------------
+    def addDiscard(self, card):
+        self._discards.append(card)
+        self.dirty = True
+
+    #----------------------------------------------------------------------
+    def removeDiscard(self, card):
+        self._discards.remove(card)
+        self.dirty = True
+
+    #----------------------------------------------------------------------
+    def drawBg(self):
+        self.image.fill( (0,0,20) )
+        r = self.rect.move(0,0)
+        r.topleft = 0,0
+        pygame.draw.rect(self.image, blue, r, 8)
+
+        pygame.draw.rect(self.image, (200,200,255), r, 1)
+
+    #----------------------------------------------------------------------
+    def drawCards(self):
+        r = self.rect.move(0,0)
+        r.topleft = 0,0
+
+        classes = [catan.Stone, catan.Brick, catan.Grain, catan.Sheep,
+                   catan.Wood]
+        x = 10
+        y = 20
+        print self.player
+        for cls in classes:
+            addPos = vect_add((x,y), (0, -25))
+            self.addButtons[cls] = DiscardAddButton(self, addPos, cls)
+
+            removePos = vect_add((x,y), (0, 30))
+            self.removeButtons[cls] = DiscardRemoveButton(self, removePos, cls)
+
+            group = [card for card in self.player.cards
+                     if isinstance(card, cls)]
+
+            for i, card in enumerate(group):
+                cardImg = pygame.Surface( (10,16) )
+                cardImg.fill( card_colors[card.__class__] )
+                pygame.draw.rect(cardImg, white, cardImg.get_rect(), 1)
+                cardPos = vect_add((x,y), (2*i,3*i))
+                self.image.blit(cardImg, cardPos)
+            x += 30
+
+    #----------------------------------------------------------------------
+    def drawButtons(self):
+        self.dButton.update()
+        self.image.blit(self.dButton.image, self.dButton.rect)
+        for button in self.addButtons.values():
+            self.image.blit(button.image, button.rect)
+        for button in self.removeButtons.values():
+            self.image.blit(button.image, button.rect)
+
+    #----------------------------------------------------------------------
+    def update(self):
+        if not self.dirty:
+            return
+
+        if len(self._discards) == len(self.player.cards)//2:
+            self.dButton.hintlighted = True
+        else:
+            self.dButton.hintlighted = False
+
+        self.drawBg()
+        self.drawCards()
+        self.drawButtons()
+        self.dirty = False
+
+    #----------------------------------------------------------------------
+    def onDiscard(self, player):
+        if player == self.player:
+            hudGroup.remove(self)
+            events.unregisterListener(self)
+            self.addButtons = None
+            self.removeButtons = None
+            self.kill()
+
+    #----------------------------------------------------------------------
+    def onMouseLeftDown(self, pos):
+        if not self.rect.collidepoint(pos):
+            return
+        self.dirty = True
+        innerPos = vect_diff(pos, self.topleft)
+        for button in self.addButtons.values() + self.removeButtons.values():
+            print 'button', button, button.rect
+            if button.rect.collidepoint(innerPos):
+                #print 'button %s sees mouse inner' % button
+                button.click()
+        if self.dButton.rect.collidepoint(innerPos):
+            if self.dButton.hintlighted:
+                events.post('DiscardRequest', self.player, self._discards)
+            
+
+#------------------------------------------------------------------------------
+class OpponentButton(EasySprite):
+    def __init__(self, parent, pos, opponent):
+        EasySprite.__init__(self)
+        self.image = EasySurface( (80,80) )
+        self.rect = self.image.get_rect()
+        self.rect.topleft = pos
+
+        self.opponent = opponent
+        self.parent = parent
+        self.drawBg()
+        self.drawCards()
+
+    #----------------------------------------------------------------------
+    def drawBg(self):
+        self.image.fill( (0,0,20) )
+        r = self.rect.move(0,0)
+        r.topleft = 0,0
+        pygame.draw.rect(self.image, blue, r, 8)
+
+        txtImg = font_render(str(self.opponent.identifier),
+                             color=self.opponent.color)
+        self.image.blit(txtImg, r.midtop)
+
+    #----------------------------------------------------------------------
+    def drawCards(self):
+        r = self.rect.move(0,0)
+        r.topleft = 0,0
+
+        cards = self.opponent.cards
+        for i, card in enumerate(cards):
+            cardImg = pygame.Surface( (10,16) )
+            cardImg.fill( card_colors[card.__class__] )
+            pygame.draw.rect(cardImg, white, cardImg.get_rect(), 1)
+            cardPos = vect_add((2,2), (3*i,3*i))
+            self.image.blit(cardImg, cardPos)
+
+    #----------------------------------------------------------------------
+    def update(self):
+        if not self.dirty:
+            return
+        self.drawBg()
+        self.drawCards()
+        self.dirty = False
+
+    #----------------------------------------------------------------------
+    def click(self):
+        self.parent.chooseVictim(self.opponent)
+        
+
+
+#------------------------------------------------------------------------------
+class ChooseVictimDisplay(EasySprite):
+    def __init__(self, player, opponents):
+        EasySprite.__init__(self)
+        events.registerListener(self)
+        self.image = EasySurface( (280,180) )
+        self.rect = self.image.get_rect()
+
+        self.player = player
+        self.opponents = opponents
+
+        self.oButtons = {}
+
+        self.drawBg()
+        self.drawButtons()
+
+        hudGroup.add(self)
+        self.dirty = True
+
+    #----------------------------------------------------------------------
+    def drawBg(self):
+        self.image.fill( (0,0,20) )
+        r = self.rect.move(0,0)
+        r.topleft = 0,0
+        pygame.draw.rect(self.image, blue, r, 8)
+
+        pygame.draw.rect(self.image, (200,200,255), r, 1)
+
+    #----------------------------------------------------------------------
+    def drawButtons(self):
+        x = 10
+        y = 20
+        for opponent in self.opponents:
+            self.oButtons[opponent] = OpponentButton(self, (x,y), opponent)
+            self.image.blit(self.oButtons[opponent].image, (x,y))
+            x += 80
+
+    #----------------------------------------------------------------------
+    def update(self):
+        if not self.dirty:
+            return
+        self.drawBg()
+        self.drawButtons()
+        self.dirty = False
+
+    #----------------------------------------------------------------------
+    def chooseVictim(self, victim):
+        events.post('RobRequest', self.player, victim)
+
+    #----------------------------------------------------------------------
+    def onRobRequest(self, player, victim):
+        if player == self.player:
+            hudGroup.remove(self)
+            events.unregisterListener(self)
+            self.addButtons = None
+            self.removeButtons = None
+            self.kill()
+
+    #----------------------------------------------------------------------
+    def onMouseLeftDown(self, pos):
+        if not self.rect.collidepoint(pos):
+            return
+        self.dirty = True
+
+        innerPos = vect_diff(pos, self.topleft)
+        for opponent in self.opponents:
+            button = self.oButtons[opponent]
+            if button.rect.collidepoint(innerPos):
+                button.click()
+                break
+
+#------------------------------------------------------------------------------
 class PlayerDisplay(EasySprite):
     def __init__(self, player):
         EasySprite.__init__(self)
@@ -828,8 +1297,6 @@ class PlayerDisplay(EasySprite):
 
         self.drawBg()
 
-        events.registerListener(self)
-
         hudGroup.add(self)
         self.dirty = True
 
@@ -839,10 +1306,17 @@ class PlayerDisplay(EasySprite):
         r = self.rect.move(0,0)
         r.topleft = 0,0
         pygame.draw.rect(self.image, blue, r, 8)
+
+        if catan.game.state.activePlayer == self.player:
+            self.active = True
+        else:
+            self.active = False
+
         if self.active:
             pygame.draw.rect(self.image, (200,200,255), r, 1)
 
-        txtImg = font_render(str(self.player.identifier), color=(0,0,0))
+        txtImg = font_render(str(self.player.identifier),
+                             color=self.player.color)
         self.image.blit(txtImg, r.midtop)
 
     #----------------------------------------------------------------------
@@ -860,18 +1334,52 @@ class PlayerDisplay(EasySprite):
 
     #----------------------------------------------------------------------
     def update(self):
+        if not self.dirty:
+            return
         self.drawBg()
         self.drawCards()
+        self.dirty = False
 
     #----------------------------------------------------------------------
     def onStageChange(self, newStage):
-        if newStage == catan.Stages.preRollSoldier:
-            if catan.game.state.activePlayer == self.player:
-                self.active = True
-                self.dirty = True
+        if newStage in [catan.Stages.preRollSoldier,
+                        catan.Stages.playerTurn]:
+            self.dirty = True
+
+        if self.player != humanPlayer:
+            return
+
+        if newStage == catan.Stages.sevenRolledDiscard:
+            if len(self.player.cards) > 7:
+                events.post('ShowDiscard', self.player)
+
+        if self.player != catan.game.state.activePlayer:
+            return
+
+        if newStage == catan.Stages.rolledRobberPlacement:
+            events.post('ShowRobberCursor', self.player)
+        elif newStage == catan.Stages.chooseVictim:
+            possibleVictims = self.player.findPossibleVictims()
+            if possibleVictims:
+                if len(possibleVictims) == 1:
+                    events.post('RobRequest', self.player,
+                                possibleVictims[0])
+                else:
+                    print 'show choose vict'
+                    events.post('ShowChooseVictim', self.player,
+                                possibleVictims)
             else:
-                self.active = False
-                self.dirty = True
+                events.post('SkipRobRequest', self.player)
+
+
+    #----------------------------------------------------------------------
+    def onDiscard(self, player):
+        if player == self.player:
+            self.dirty = True
+
+    #----------------------------------------------------------------------
+    def onRefreshState(self):
+        self.dirty = True
 
 
 humanPlayer = None

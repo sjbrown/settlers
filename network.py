@@ -314,6 +314,7 @@ MixInClass( Pip, CopyablePip )
 #------------------------------------------------------------------------------
 class CopyableBoard(Serializable):
     copyworthy_attrs = ['robber']
+    registry_attrs = ['robber']
 
     def getStateToCopy(self, registry):
         d = Serializable.getStateToCopy(self, registry)
@@ -356,8 +357,9 @@ class CopyableBoard(Serializable):
             print 'Setting tile state', t, tdict
             neededObjIDs += t.setCopyableState(tdict, registry)
             #assert t.name == tdict['name']
-            if t.isCenter:
-                assert stateDict['centerTile'] == t.name
+            if stateDict['centerTile'] == t.name:
+                #t.isCenter = True
+                mapmodel.centerTile = t
 
         for cID, cdict in stateDict['allCorners']:
             c = registry[cID]

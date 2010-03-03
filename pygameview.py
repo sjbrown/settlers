@@ -995,6 +995,7 @@ class BoardDisplay(object):
 class DiscardTextButton(EasySprite, Highlightable):
     def __init__(self, pos):
         EasySprite.__init__(self)
+        Highlightable.__init__(self)
         self.draw()
         self.rect = self.image.get_rect()
         self.rect.topleft = pos

@@ -206,14 +206,13 @@ class EndTurnButton(EasySprite, Highlightable):
 
     #----------------------------------------------------------------------
     def update(self):
-        print 'update', self, 'got called.  d:', self.dirty
+        #print 'update', self, 'got called.  d:', self.dirty
         if not self.dirty:
             return
         self.draw()
 
     #----------------------------------------------------------------------
     def draw(self):
-        print 'drawing'
         self.image = EasySurface( (150,50) )
         r = self.rect.move(-self.x, -self.y)
         pygame.draw.rect(self.image, blue, r, 2)
@@ -224,7 +223,6 @@ class EndTurnButton(EasySprite, Highlightable):
             color = (255,100,100)
         else:
             color = red
-        print 'dirty.  blitting', color
         txtImg = font_render('END TURN', color=color)
         blit_at_center(self.image, txtImg)
 
@@ -232,10 +230,7 @@ class EndTurnButton(EasySprite, Highlightable):
 
     #----------------------------------------------------------------------
     def onMouseMotion(self, pos, buttons):
-        print 'motion', self.rect.collidepoint(pos)
         self.checkHover(pos)
-        print 'motion hl', self.hoverlighted
-        print 'motion d', self.dirty
 
     #----------------------------------------------------------------------
     def onMouseLeftDown(self, pos):
@@ -883,7 +878,7 @@ class PygameView:
         dirtyRects = edgeGroup.draw( self.window )
 
         for hudSprite in hudGroup:
-            print 'calling update on ', hudSprite
+            #print 'calling update on ', hudSprite
             hudSprite.update()
         dirtyRects = hudGroup.draw( self.window )
 
@@ -1104,7 +1099,7 @@ class DiscardDisplay(EasySprite):
                    catan.Wood]
         x = 10
         y = 20
-        print self.player
+        #print self.player
         for cls in classes:
             addPos = vect_add((x,y), (0, -25))
             self.addButtons[cls] = DiscardAddButton(self, addPos, cls)
@@ -1163,7 +1158,7 @@ class DiscardDisplay(EasySprite):
         self.dirty = True
         innerPos = vect_diff(pos, self.topleft)
         for button in self.addButtons.values() + self.removeButtons.values():
-            print 'button', button, button.rect
+            #print 'button', button, button.rect
             if button.rect.collidepoint(innerPos):
                 #print 'button %s sees mouse inner' % button
                 button.click()
@@ -1375,7 +1370,7 @@ class PlayerDisplay(EasySprite):
                     events.post('RobRequest', self.player,
                                 possibleVictims[0])
                 else:
-                    print 'show choose vict'
+                    #print 'show choose vict'
                     events.post('ShowChooseVictim', self.player,
                                 possibleVictims)
             else:

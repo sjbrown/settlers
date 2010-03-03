@@ -362,15 +362,15 @@ class Console(EasySprite):
         self.outText['text'] = '\n'.join([lines[-1], str(event)]) #last 2 items
 
 
-
 #------------------------------------------------------------------------------
-class DiceButton(EasySprite):
+class DiceButton(EasySprite, Highlightable):
     def __init__(self):
         EasySprite.__init__(self)
+        Highlightable.__init__(self)
+        events.registerListener(self)
         self.image = EasySurface( (150,100) )
         self.rect = self.image.get_rect()
 
-        self.rollText = dict(text='ROLL', color=(255,0,0) )
         self.diceText1 = dict(text='*', size=30, color=(255,0,0) )
         self.diceText2 = dict(text='*', size=30, color=(255,0,0) )
 
@@ -378,9 +378,6 @@ class DiceButton(EasySprite):
         self.drawText()
 
         hudGroup.add(self)
-
-        events.registerListener(self)
-        self.dirty = True
 
     #----------------------------------------------------------------------
     def drawBg(self):
@@ -398,8 +395,15 @@ class DiceButton(EasySprite):
     #----------------------------------------------------------------------
     def drawText(self):
         r = self.rect.move(0,0)
+
+        if self.hoverlighted:
+            color = white
+        elif self.hintlighted:
+            color = (255,100,100)
+        else:
+            color = red
         r.topleft = 0,35
-        txtImg = font_render(**self.rollText)
+        txtImg = font_render('ROLL', color=color)
         blit_at_center(self.image, txtImg, rect1=r)
 
         r.size = 50,50
@@ -416,11 +420,16 @@ class DiceButton(EasySprite):
         self.image.fill( (0,0,0) )
         self.drawBg()
         self.drawText()
+        self.dirty = False
 
     #----------------------------------------------------------------------
     def onDiceRoll(self, d1, d2):
         self.diceText1['text'] = str(d1)
         self.diceText2['text'] = str(d2)
+
+    #----------------------------------------------------------------------
+    def onMouseMotion(self, pos, buttons):
+        self.checkHover(pos)
 
     #----------------------------------------------------------------------
     def onMouseLeftDown(self, pos):

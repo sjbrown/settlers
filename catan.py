@@ -208,6 +208,7 @@ class GameState(object):
             if victim.cards:
                 card = random.choice(victim.cards)
                 victim.cards.remove(card)
+                thief.cards.append(card)
                 events.post('Rob', thief, victim, card)
             self.stage = Stages.playerTurn
 

@@ -356,7 +356,6 @@ class Console(EasySprite):
         lines = text.split('\n')
         self.outText['text'] = '\n'.join([lines[-1], str(event)]) #last 2 items
 
-
 #------------------------------------------------------------------------------
 class DiceButton(EasySprite, Highlightable):
     def __init__(self):
@@ -430,6 +429,88 @@ class DiceButton(EasySprite, Highlightable):
     def onMouseLeftDown(self, pos):
         if self.rect.collidepoint(pos):
             events.post('DiceRollRequest', humanPlayer)
+
+#------------------------------------------------------------------------------
+class BuyButton(EasySprite, Highlightable):
+    def __init__(self, itemClass, text):
+        EasySprite.__init__(self)
+        Highlightable.__init__(self)
+        events.registerListener(self)
+        self.image = EasySurface( (50,50) )
+        self.rect = self.image.get_rect()
+        hudGroup.add(self)
+
+        self.text = text
+
+        self.itemClass = itemClass
+
+        self.draw()
+
+    #----------------------------------------------------------------------
+    def update(self):
+        if not self.dirty:
+            return
+        self.draw()
+
+    #----------------------------------------------------------------------
+    def draw(self):
+        self.image.fill(black)
+        r = self.rect.move(-self.x, -self.y)
+        pygame.draw.rect(self.image, blue, r, 2)
+
+        if self.hoverlighted:
+            color = white
+        elif self.hintlighted:
+            color = (255,100,100)
+        else:
+            color = red
+        txtImg = font_render(self.text, color=color, size=30)
+        blit_at_center(self.image, txtImg)
+
+        self.dirty = False
+
+    #----------------------------------------------------------------------
+    def onMouseMotion(self, pos, buttons):
+        self.checkHover(pos)
+
+    #----------------------------------------------------------------------
+    def onMouseLeftDown(self, pos):
+        if self.rect.collidepoint(pos):
+            events.post('BuyRequest', humanPlayer, self.itemClass())
+
+    #----------------------------------------------------------------------
+    def calculateHighlight(self):
+        item = self.itemClass()
+        if not humanPlayer.neededCardClasses(item):
+            self.hintlighted = True
+        else:
+            self.hintlighted = False
+
+    #----------------------------------------------------------------------
+    def onRob(self, thief, victim, card):
+        if humanPlayer in [thief, victim]:
+            self.calculateHighlight()
+
+    #----------------------------------------------------------------------
+    def onDiscard(self, player):
+        if player == humanPlayer:
+            self.calculateHighlight()
+        
+    #----------------------------------------------------------------------
+    def onHarvest(self, cards, sourceTile, recipient):
+        if recipient == humanPlayer:
+            self.calculateHighlight()
+
+
+#------------------------------------------------------------------------------
+class BuySettlementButton(BuyButton):
+    def __init__(self):
+        BuyButton.__init__(self, catan.Settlement, 'S')
+
+#------------------------------------------------------------------------------
+class BuyRoadButton(BuyButton):
+    def __init__(self):
+        BuyButton.__init__(self, catan.Road, 'R')
 
 #------------------------------------------------------------------------------
 class ItemSprite(EasySprite):
@@ -624,6 +705,8 @@ class Corner(EasySprite, Highlightable):
         text = self.corner.name
         textImg = font_render(text, size=15, color=(5,0,0))
         self.image.blit( textImg, (0,0) )
+        if self.hintlighted:
+            pygame.draw.rect(self.image, white, self.image.get_rect(), 1)
 
     def update(self):
         if not self.dirty:
@@ -659,35 +742,36 @@ class Corner(EasySprite, Highlightable):
     def onItemPlaced(self, item):
         if self.hoverlighted:
             self.hoverlighted = False
-            self.dirty = True
         if self.hintlighted:
+            print 'turning off hintlighted'
             self.hintlighted = False
-            self.dirty = True
         if item.location == self.corner:
             self.dirty = True
 
     def onRobberPlaced(self, *args):
         self.dirty = True
 
-    def onPlayerPlacing(self, player, item):
-        if isinstance(player, catan.HumanPlayer):
-            if self.corner in player.findFreeCornersForSettlement():
-                self.hintlighted = True
-                self.dirty = True
+    def onHintLightCorners(self, corners):
+        if self.corner in corners:
+            self.hintlighted = True
+
+    #def onPlayerPlacing(self, player, item):
+        #if isinstance(player, catan.HumanPlayer):
+            #if self.corner in player.findFreeCornersForSettlement():
+                #self.hintlighted = True
 
     def onMouseMotion(self, pos, buttons):
         if self.hintlighted:
             if self.rect.collidepoint(pos):
                 self.hoverlighted = True
-                self.dirty = True
             else:
                 self.hoverlighted = False
-                self.dirty = True
         
     def onMouseLeftDown(self, pos):
         if self.hoverlighted:
             if self.rect.collidepoint(pos):
                 events.post('ClickCorner', self.corner)
+
                 
 #------------------------------------------------------------------------------
 class Edge(EasySprite, Highlightable):
@@ -818,6 +902,10 @@ class PygameView:
 
     #----------------------------------------------------------------------
     def showHud(self):
+        sbutton = BuySettlementButton()
+        sbutton.topleft = 600, 220
+        rbutton = BuyRoadButton()
+        rbutton.topleft = 660, 220
         dbutton = DiceButton()
         dbutton.topleft = 600, 300
         ebutton = EndTurnButton()
@@ -1382,6 +1470,9 @@ class PlayerDisplay(EasySprite):
         if player == self.player:
             self.dirty = True
 
+    #----------------------------------------------------------------------
+    def onPlayerPlacing(self, *args):
+        self.dirty = True
     #----------------------------------------------------------------------
     def onRefreshState(self):
         self.dirty = True

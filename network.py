@@ -89,9 +89,6 @@ class Serializable:
         neededObjIDs = []
 
         for attrName, value in stateDict.items():
-            if isinstance(self, Tile):
-                print 'unserializing tile %s %s s' % (self, attrName)
-
             if hasattr(self, 'unserialize_'+attrName):
                 method = getattr(self, 'unserialize_'+attrName)
                 neededObjIDs_ = method(stateDict, registry)

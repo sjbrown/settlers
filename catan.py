@@ -231,7 +231,7 @@ class GameState(object):
             self.nextPlayer()
             self.stage = Stages.preRollSoldier
 
-debugRolls = [(2,5), (1,1), (1,1), (1,1),  (3,4), (6,6)]
+debugRolls = [(2,5), (2,1), (2,1), (1,1),  (3,4), (6,6)]
 class Dice(object):
     def __init__(self):
         events.registerListener(self)
@@ -279,18 +279,6 @@ class Robber(object):
     tile = property(getTile)
 
 
-class Settlement(object):
-    def __init__(self):
-        self.owner = None
-        self.location = None
-
-class City(Settlement): pass
-
-class Road(object):
-    def __init__(self):
-        self.owner = None
-        self.location = None
-
 class Card(object):
     def __str__(self):
         return '<Card %s %s>' % (self.__class__.__name__, id(self))
@@ -318,6 +306,22 @@ class Grass(Terrain):
 class Forest(Terrain):
     def getCardClass(self):
         return Wood
+
+class Settlement(object):
+    cost = [Wood, Sheep, Grain, Brick]
+    def __init__(self):
+        self.owner = None
+        self.location = None
+
+class City(Settlement):
+    cost = [Grain, Grain, Stone, Stone, Stone]
+
+class Road(object):
+    cost = [Wood, Brick]
+    def __init__(self):
+        self.owner = None
+        self.location = None
+
 
 terrainClasses = [Wheat]*4 + [Mud]*3 + [Mountain]*3 + [Grass]*4 + [Forest]*4 + [Desert]
 
@@ -431,11 +435,74 @@ class Player(object):
     def __repr__(self):
         return str(self)
 
+    def getRoads(self):
+        for item in self.items:
+            if isinstance(item, Road):
+                yield item
+    roads = property(getRoads)
+
+    def getSmallSettlements(self):
+        for item in self.items:
+            if isinstance(item, Settlement) and not isinstance(item, City):
+                yield item
+    smallSettlements = property(getSmallSettlements)
+
+    def getCities(self):
+        for item in self.items:
+            if isinstance(item, City):
+                yield item
+    cities = property(getCities)
+
     def add(self, item):
         item.owner = self
         self.items.append(item)
         self.activeItem = item
         events.post('PlayerPlacing', self, item)
+
+    def canPlace(self, item):
+        # TODO: I need to do a negative test case
+        if isinstance(item, Settlement):
+            spots = self.findFreeCornersForSettlement()
+        elif isinstance(item, Road):
+            spots = self.findFreeEdgesForRoad()
+        return bool(spots)
+
+    def buy(self, item):
+        price, needs = self.takePrice(item, self.cards)
+        assert not needs
+
+    def neededCardClasses(self, item):
+        handCopy = self.cards[:]
+        price, neededCardClasses = self.takePrice(item, handCopy)
+        return neededCardClasses
+
+    def takePrice(self, item, cards):
+        '''return (price, neededCardClasses)'''
+        price = []
+        neededCardClasses = []
+        for cardClass in item.__class__.cost:
+            satisfiers = [card for card in cards
+                          if card.__class__ == cardClass]
+            if not satisfiers:
+                neededCardClasses.append(cardClass)
+                continue
+            cards.remove(satisfiers[0])
+            price.append(satisfiers[0])
+        return price, neededCardClasses
+
+    @allowedDuring(Stages.playerTurn)
+    def onBuyRequest(self, player, item):
+        if player != self or self != game.state.activePlayer:
+            return
+        needs = self.neededCardClasses(item)
+        if needs:
+            events.post('PlayerCannotAfford', self, item, needs)
+            return
+        if not self.canPlace(item):
+            events.post('PlayerCannotPlace', self, item)
+            return
+        self.buy(item)
+        self.add(item)
 
     def placeRobber(self):
         self.activeItem = game.board.robber
@@ -454,16 +521,71 @@ class Player(object):
     def findFreeCornersForSettlement(self):
         freeCorners = []
         for c in mapmodel.allCorners:
-            settledPeers = [corner for corner in c.getPeers()
-                            if corner.stuff]
-            if not settledPeers and not c.stuff:
-                freeCorners.append(c)
+            if c.stuff:
+                continue
+            freeCorners.append(c)
+        print 'free', freeCorners
+        freeCorners = self.filterUnblockedCorners(freeCorners)
+        print 'free', freeCorners
+
+        if game.state.stage == Stages.initialPlacement:
+            return freeCorners
+
+        freeCorners = self.filterRoadConnectedCorners(freeCorners)
+        print 'free', freeCorners
         return freeCorners
+
+    def filterRoadConnectedCorners(self, corners):
+        connectedCorners = []
+        for corner in corners:
+            for e in corner.edges:
+                print 'e', e, e.stuff
+                if not e.stuff:
+                    continue
+                road = e.stuff[0]
+                print 'road', e, e.stuff
+                if road.owner == self:
+                    connectedCorners.append(corner)
+        return connectedCorners
+
+    def filterUnblockedCorners(self, corners):
+        # remove any corner that is adjacent to a settled corner
+        return [corner for corner in corners
+                if not
+                       [peer for peer in corner.getPeers()
+                        if peer.stuff]
+               ]
         
     def findFreeEdgesOfSettlement(self, settlement):
         corner = settlement.location
         edges = corner.getEdges()
         return [e for e in edges if not e.stuff]
+
+    def findFreeEdgesForRoad(self):
+        freeEdges = []
+        for e in mapmodel.allEdges:
+            # if an edge has a road it is definitely not free
+            if e.stuff:
+                continue
+
+            for corner in e.corners:
+                # i can build on an edge next to my house
+                if corner.stuff:
+                    settlement = corner.stuff[0]
+                    if settlement.owner == self:
+                        freeEdges.append(e)
+                        break
+                # i can build on an edge next to my road, as long
+                # as there's no opponent house in the way
+                else:
+                    otherEdges = [edge for edge in corner.edges if edge != e]
+                    for otherEdge in otherEdges:
+                        if otherEdge.stuff:
+                            road = otherEdge.stuff[0]
+                            if road.owner == self:
+                                freeEdges.append(e)
+                                break
+        return freeEdges
 
     def findFreeTilesForRobber(self):
         freeTiles = []
@@ -507,17 +629,19 @@ class HumanPlayer(Player):
                 self.activeItem = None
 
     def onPlayerPlacing(self, player, item):
-        if game.state.activePlayer == self:
-            if game.state.stage == Stages.initialPlacement:
-                if isinstance(self.activeItem, Settlement):
-                    corners = self.findFreeCornersForSettlement()
-                    events.post('HintLightCorners', corners)
-                if isinstance(self.activeItem, Road):
+        if player == self and game.state.activePlayer == self:
+            if isinstance(self.activeItem, Settlement):
+                corners = self.findFreeCornersForSettlement()
+                events.post('HintLightCorners', corners)
+            if isinstance(self.activeItem, Road):
+                if game.state.stage == Stages.initialPlacement:
                     edges = self.findFreeEdgesOfSettlement(self.latestItem)
-                    events.post('HintLightEdges', edges)
-                if isinstance(self.activeItem, Robber):
-                    tiles = self.findFreeTilesForRobber(self.latestItem)
-                    events.post('HintLightTiles', tiles)
+                else:
+                    edges = self.findFreeEdgesForRoad()
+                events.post('HintLightEdges', edges)
+            if isinstance(self.activeItem, Robber):
+                tiles = self.findFreeTilesForRobber()
+                events.post('HintLightTiles', tiles)
 
 class CPUPlayer(Player):
     def doInitialPlacement(self):

@@ -755,11 +755,6 @@ class Corner(EasySprite, Highlightable):
         if self.corner in corners:
             self.hintlighted = True
 
-    #def onPlayerPlacing(self, player, item):
-        #if isinstance(player, catan.HumanPlayer):
-            #if self.corner in player.findFreeCornersForSettlement():
-                #self.hintlighted = True
-
     def onMouseMotion(self, pos, buttons):
         if self.hintlighted:
             if self.rect.collidepoint(pos):
@@ -833,9 +828,14 @@ class Edge(EasySprite, Highlightable):
             color = (0,0,200, 255)
 
         #print 'drawing edge from, to', c1Sprite.center, c2Sprite.center
-        pygame.draw.aaline(self.image, color,
-                           vect_diff(c1Sprite.center, self.rect.topleft),
-                           vect_diff(c2Sprite.center, self.rect.topleft))
+        point1 = vect_diff(c1Sprite.center, self.rect.topleft)
+        point2 = vect_diff(c2Sprite.center, self.rect.topleft)
+        pygame.draw.aaline(self.image, color, point1, point2)
+        if self.hintlighted or self.hoverlighted:
+            pygame.draw.circle(self.image, white, point1, 3)
+            pygame.draw.circle(self.image, white, point2, 3)
+            #pygame.draw.line(self.image, white, point1, point1)
+            #pygame.draw.line(self.image, white, point2, point2)
 
         if self.edge.stuff:
             item = self.edge.stuff[0]
@@ -848,7 +848,6 @@ class Edge(EasySprite, Highlightable):
         if self.hintlighted or self.hoverlighted:
             self.hintlighted = False
             self.hoverlighted = False
-            self.dirty = True
         if item.location == self.edge:
             self.dirty = True
 
@@ -864,10 +863,8 @@ class Edge(EasySprite, Highlightable):
         if self.hintlighted:
             if self.rect.collidepoint(pos):
                 self.hoverlighted = True
-                self.dirty = True
             else:
                 self.hoverlighted = False
-                self.dirty = True
         
     def onMouseLeftDown(self, pos):
         if self.hoverlighted:
@@ -1411,6 +1408,11 @@ class PlayerDisplay(EasySprite):
         txtImg = font_render(str(self.player.identifier),
                              color=self.player.color)
         self.image.blit(txtImg, r.midtop)
+
+        txtImg = font_render(str(self.player.points),
+                             color=self.player.color)
+        pos = vect_add(r.midtop, (10,0))
+        self.image.blit(txtImg, pos)
 
     #----------------------------------------------------------------------
     def drawCards(self):

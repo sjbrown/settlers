@@ -84,9 +84,13 @@ def allowedDuring(*allowedStages):
             #print 'called ', fn
             #print 'supposed to be in', allowedStages
             if game.state.stage not in allowedStages:
-                raise EventNotAllowedAtThisStage(fn.__name__,
+                print 'EVENT NOT ALLOWED'
+                events.post('EventNotAllowedAtThisStage', fn.__name__,
                                                  game.state.stage,
                                                  allowedStages)
+                #raise EventNotAllowedAtThisStage(fn.__name__,
+                #                                 game.state.stage,
+                #                                 allowedStages)
             retval = fn(*args)
             return retval
         wrappedfn.__name__ = fn.__name__
@@ -322,6 +326,19 @@ class Road(object):
         self.owner = None
         self.location = None
 
+class VictoryCard(object):
+    def __str__(self):
+        return '<VictoryCard %s %s>' % (self.__class__.__name__, id(self))
+    __repr__ = __str__
+
+class PointCard(VictoryCard): pass
+
+class Cathedral(PointCard): pass
+class University(PointCard): pass
+
+class Soldier(VictoryCard): pass
+class YearOfPlenty(VictoryCard): pass
+class Monopoly(VictoryCard): pass
 
 terrainClasses = [Wheat]*4 + [Mud]*3 + [Mountain]*3 + [Grass]*4 + [Forest]*4 + [Desert]
 
@@ -426,14 +443,35 @@ class Player(object):
         self.color = Player.colors[i-1]
         self.items = []
         self.cards = []
+        self.victoryCards = []
         self.latestItem = None
         self.activeItem = None
         events.registerListener(self)
+        self.hasLongestRoad = False
+        self.hasLargestArmy = False
 
     def __str__(self):
         return '<Player %s>' % str(self.identifier)
     def __repr__(self):
         return str(self)
+
+    def getPoints(self):
+        points = 0
+        for item in self.items:
+            if isinstance(item, Settlement):
+                if isinstance(item, City):
+                    points += 2
+                else:
+                    points += 1
+        for vcard in self.victoryCards:
+            if isinstance(vcard, PointCard):
+                points += 1
+        if self.hasLongestRoad:
+            points += 2
+        if self.hasLargestArmy:
+            points += 2
+        return points
+    points = property(getPoints)
 
     def getRoads(self):
         for item in self.items:
@@ -578,7 +616,8 @@ class Player(object):
                 # i can build on an edge next to my road, as long
                 # as there's no opponent house in the way
                 else:
-                    otherEdges = [edge for edge in corner.edges if edge != e]
+                    otherEdges = [edge for edge in corner.edges
+                                  if edge != e and edge != None]
                     for otherEdge in otherEdges:
                         if otherEdge.stuff:
                             road = otherEdge.stuff[0]

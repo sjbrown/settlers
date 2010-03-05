@@ -489,6 +489,10 @@ class CopyablePlayer(Serializable):
 
     def postUnserialize(self):
         self.activeItem = None
+        self.victoryCards = []
+        # TODO: these should be unserialized or something
+        self.hasLongestRoad = False
+        self.hasLargestArmy = False
         events.registerListener(self)
 
 

@@ -278,6 +278,7 @@ class SaveGameButton(EasySprite, Highlightable):
     #----------------------------------------------------------------------
     def onMouseLeftDown(self, pos):
         if self.rect.collidepoint(pos):
+            print '        SAVED   **************'
             import saved_game
             saved_game.save()
 
@@ -501,6 +502,10 @@ class BuyButton(EasySprite, Highlightable):
         if recipient == humanPlayer:
             self.calculateHighlight()
 
+    #----------------------------------------------------------------------
+    def onPlayerPlacing(self, *args):
+        self.dirty = True
+
 
 #------------------------------------------------------------------------------
 class BuySettlementButton(BuyButton):
@@ -511,6 +516,11 @@ class BuySettlementButton(BuyButton):
 class BuyRoadButton(BuyButton):
     def __init__(self):
         BuyButton.__init__(self, catan.Road, 'R')
+
+#------------------------------------------------------------------------------
+class BuyCityButton(BuyButton):
+    def __init__(self):
+        BuyButton.__init__(self, catan.City, 'C')
 
 #------------------------------------------------------------------------------
 class ItemSprite(EasySprite):
@@ -743,7 +753,6 @@ class Corner(EasySprite, Highlightable):
         if self.hoverlighted:
             self.hoverlighted = False
         if self.hintlighted:
-            print 'turning off hintlighted'
             self.hintlighted = False
         if item.location == self.corner:
             self.dirty = True
@@ -834,8 +843,6 @@ class Edge(EasySprite, Highlightable):
         if self.hintlighted or self.hoverlighted:
             pygame.draw.circle(self.image, white, point1, 3)
             pygame.draw.circle(self.image, white, point2, 3)
-            #pygame.draw.line(self.image, white, point1, point1)
-            #pygame.draw.line(self.image, white, point2, point2)
 
         if self.edge.stuff:
             item = self.edge.stuff[0]
@@ -903,6 +910,9 @@ class PygameView:
         sbutton.topleft = 600, 220
         rbutton = BuyRoadButton()
         rbutton.topleft = 660, 220
+        cbutton = BuyCityButton()
+        cbutton.topleft = 720, 220
+
         dbutton = DiceButton()
         dbutton.topleft = 600, 300
         ebutton = EndTurnButton()
@@ -1451,8 +1461,8 @@ class PlayerDisplay(EasySprite):
         if self.player != catan.game.state.activePlayer:
             return
 
-        if newStage == catan.Stages.rolledRobberPlacement:
-            events.post('ShowRobberCursor', self.player)
+        #if newStage == catan.Stages.rolledRobberPlacement:
+        #    events.post('ShowRobberCursor', self.player)
         elif newStage == catan.Stages.chooseVictim:
             possibleVictims = self.player.findPossibleVictims()
             if possibleVictims:
@@ -1473,8 +1483,11 @@ class PlayerDisplay(EasySprite):
             self.dirty = True
 
     #----------------------------------------------------------------------
-    def onPlayerPlacing(self, *args):
+    def onPlayerPlacing(self, player, item):
         self.dirty = True
+        if self.player == player and isinstance(item, catan.Robber):
+            events.post('ShowRobberCursor', self.player)
+
     #----------------------------------------------------------------------
     def onRefreshState(self):
         self.dirty = True

@@ -45,6 +45,11 @@ class BuildableLocation(object):
         self.stuff.append(item)
         item.location = self
         events.post('ItemPlaced', item)
+    def pop(self):
+        item = self.stuff.pop()
+        item.location = None
+        events.post('ItemRemoved', item)
+        return item
 
 #------------------------------------------------------------------------------
 class Edge(BuildableLocation):

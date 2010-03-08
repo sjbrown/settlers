@@ -1,11 +1,28 @@
 #! /usr/bin/env python
 
+import os
+import re
 import catan
 import mapmodel
 from pprint import pformat
 import network # Importing will mix-in the classes
 
-NAME = 'save%03d' % 3
+SAVED_GAME_DIR = '.'
+
+filenames = os.listdir(SAVED_GAME_DIR)
+numbers = []
+for fname in filenames:
+    match = re.match(r'save(\d\d\d).py', fname)
+    if not match:
+        continue
+    numbers.append(int(match.group(1)))
+if not numbers:
+    SAVE_NUM = 1
+else:
+    SAVE_NUM = max(numbers) + 1
+
+SAVE_NAME = 'save%03d' % SAVE_NUM
+LOAD_NAME = 'save%03d' % (SAVE_NUM - 1)
 
 def sanityCheck():
     assert len(mapmodel.allCorners) == len(mapmodel.cornersToTiles)
@@ -24,7 +41,7 @@ def sanityCheck():
     assert robber
 
 # -----------------------------------------------------------------------------
-def save(fname='./'+NAME+'.py'):
+def save(fname='./'+SAVE_NAME+'.py'):
     reg = {}
     dicts = {}
 
@@ -110,7 +127,7 @@ def deserialize(loadReg, srcReg, dicts, objID, clsModule, clsName):
         obj.placeholder_setClass(cls, loadReg)
 
 # -----------------------------------------------------------------------------
-def load(modname=NAME):
+def load(modname=LOAD_NAME):
     loadReg = {}
     module = __import__(modname, globals())
     #print module.reg

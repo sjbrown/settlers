@@ -88,6 +88,7 @@ def allowedDuring(*allowedStages):
                 events.post('EventNotAllowedAtThisStage', fn.__name__,
                                                  game.state.stage,
                                                  allowedStages)
+                return
                 #raise EventNotAllowedAtThisStage(fn.__name__,
                 #                                 game.state.stage,
                 #                                 allowedStages)
@@ -199,6 +200,7 @@ class GameState(object):
         if any([len(player.cards) > 7 for player in self.game.players]):
             return # someone still needs to discard
         self.stage = Stages.rolledRobberPlacement
+        self.activePlayer.placeRobber()
 
     @allowedDuring(Stages.setup, Stages.rolledRobberPlacement, Stages.soldierCard)
     def onRobberPlaced(self, robber):
@@ -235,7 +237,7 @@ class GameState(object):
             self.nextPlayer()
             self.stage = Stages.preRollSoldier
 
-debugRolls = [(2,5), (2,1), (2,1), (1,1),  (3,4), (6,6)]
+debugRolls = [(1,2), (2,5), (2,1), (2,1), (6,6)]
 class Dice(object):
     def __init__(self):
         events.registerListener(self)
@@ -318,7 +320,7 @@ class Settlement(object):
         self.location = None
 
 class City(Settlement):
-    cost = [Grain, Grain, Stone, Stone, Stone]
+    cost = [Grain, Grain, Grain, Stone, Stone]
 
 class Road(object):
     cost = [Wood, Brick]
@@ -573,6 +575,13 @@ class Player(object):
         print 'free', freeCorners
         return freeCorners
 
+    def findCornersForCity(self):
+        corners = []
+        for item in self.items:
+            if isinstance(item, Settlement) and not isinstance(item, City):
+                corners.append(item.location)
+        return corners
+
     def filterRoadConnectedCorners(self, corners):
         connectedCorners = []
         for corner in corners:
@@ -654,11 +663,22 @@ class Player(object):
 class HumanPlayer(Player):
 
     def onClickCorner(self, corner):
-        if game.state.activePlayer == self:
-            if self.activeItem and isinstance(self.activeItem, Settlement):
-                corner.add(self.activeItem)
-                self.latestItem = self.activeItem
-                self.activeItem = None
+        if game.state.activePlayer != self:
+            return
+        if not self.activeItem:
+            print 'NO ACTIVE ITEM!!!!!!!!!!!!!!!!!!'
+            return
+        if isinstance(self.activeItem, City):
+            oldItem = corner.pop()
+            assert isinstance(oldItem, Settlement)
+            self.items.remove(oldItem)
+            corner.add(self.activeItem)
+            self.latestItem = self.activeItem
+            self.activeItem = None
+        elif isinstance(self.activeItem, Settlement):
+            corner.add(self.activeItem)
+            self.latestItem = self.activeItem
+            self.activeItem = None
 
     def onClickEdge(self, edge):
         if game.state.activePlayer == self:
@@ -670,8 +690,12 @@ class HumanPlayer(Player):
     def onPlayerPlacing(self, player, item):
         if player == self and game.state.activePlayer == self:
             if isinstance(self.activeItem, Settlement):
-                corners = self.findFreeCornersForSettlement()
-                events.post('HintLightCorners', corners)
+                if isinstance(self.activeItem, City):
+                    corners = self.findCornersForCity()
+                    events.post('HintLightCorners', corners)
+                else:
+                    corners = self.findFreeCornersForSettlement()
+                    events.post('HintLightCorners', corners)
             if isinstance(self.activeItem, Road):
                 if game.state.stage == Stages.initialPlacement:
                     edges = self.findFreeEdgesOfSettlement(self.latestItem)

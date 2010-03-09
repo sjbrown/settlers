@@ -414,6 +414,9 @@ class Game(object):
 
         events.registerListener(self)
 
+    def calculateLongestRoad(self, newRoad):
+        print "NOT IMPLEMENTED calculateLongestRoad"
+
     def onStageChange(self, newStage):
         if game.state.stage == Stages.setup:
             self.board = Board()
@@ -434,6 +437,10 @@ class Game(object):
                                 cards = [cardClass()]
                             events.post('Harvest', cards, tile, owner)
             events.post('CardHarvestOver')
+
+    def onItemPlaced(self, item):
+        if isinstance(item, Road):
+            self.calculateLongestRoad(item)
 
 
 class Player(object):

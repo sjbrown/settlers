@@ -477,7 +477,7 @@ class BuyButton(EasySprite, Highlightable):
     #----------------------------------------------------------------------
     def onMouseLeftDown(self, pos):
         if self.rect.collidepoint(pos):
-            events.post('BuyRequest', humanPlayer, self.itemClass())
+            events.post('BuyRequest', humanPlayer, self.itemClass)
 
     #----------------------------------------------------------------------
     def calculateHighlight(self):
@@ -521,6 +521,11 @@ class BuyRoadButton(BuyButton):
 class BuyCityButton(BuyButton):
     def __init__(self):
         BuyButton.__init__(self, catan.City, 'C')
+
+#------------------------------------------------------------------------------
+class BuyVictoryCardButton(BuyButton):
+    def __init__(self):
+        BuyButton.__init__(self, catan.VictoryCard, 'V')
 
 #------------------------------------------------------------------------------
 class ItemSprite(EasySprite):
@@ -906,6 +911,9 @@ class PygameView:
 
     #----------------------------------------------------------------------
     def showHud(self):
+        vbutton = BuyVictoryCardButton()
+        vbutton.topleft = 600, 160
+
         sbutton = BuySettlementButton()
         sbutton.topleft = 600, 220
         rbutton = BuyRoadButton()

@@ -313,25 +313,62 @@ class Forest(Terrain):
     def getCardClass(self):
         return Wood
 
-class Settlement(object):
+class FiniteGameObject(object):
+    '''A game object of which there are a finite amount
+    eg, there are only 5 Settlements per player
+    '''
+    @staticmethod
+    def takeOne(cls, player, attrName):
+        '''A factory method which returns a new object of class 'cls', but
+        first checks to see if there are any available
+        '''
+        if len(getattr(player, attrName)) >= cls.maxPerPlayer:
+            raise LookupError('Player has the maximum number of %s' % attrName)
+        return cls()
+
+class Settlement(FiniteGameObject):
     cost = [Wood, Sheep, Grain, Brick]
+    maxPerPlayer = 5 #TODO check this
     def __init__(self):
         self.owner = None
         self.location = None
+
+    @classmethod
+    def takeOne(cls, player):
+        return FiniteGameObject.takeOne(cls, player, 'smallSettlements')
 
 class City(Settlement):
     cost = [Grain, Grain, Grain, Stone, Stone]
+    maxPerPlayer = 5 #TODO check this
 
-class Road(object):
+    @classmethod
+    def takeOne(cls, player):
+        return FiniteGameObject.takeOne(cls, player, 'cities')
+
+class Road(FiniteGameObject):
     cost = [Wood, Brick]
+    maxPerPlayer = 11 #TODO check this
     def __init__(self):
         self.owner = None
         self.location = None
 
-class VictoryCard(object):
+    @classmethod
+    def takeOne(cls, player):
+        return FiniteGameObject.takeOne(cls, player, 'roads')
+
+class VictoryCard(FiniteGameObject):
+    cost = [Grain, Sheep, Stone]
     def __str__(self):
         return '<VictoryCard %s %s>' % (self.__class__.__name__, id(self))
     __repr__ = __str__
+
+    def takeOne(cls, player):
+        # TODO: shuffle
+        try:
+            subclass = allVictoryCardClasses.pop()
+        except IndexError:
+            raise IndexError('There are no more victory cards in the deck')
+        return subclass()
 
 class PointCard(VictoryCard): pass
 
@@ -341,6 +378,9 @@ class University(PointCard): pass
 class Soldier(VictoryCard): pass
 class YearOfPlenty(VictoryCard): pass
 class Monopoly(VictoryCard): pass
+
+# TODO: use the official distribution
+allVictoryCardClasses = [Cathedral, University, Soldier, YearOfPlenty, Monopoly]
 
 terrainClasses = [Wheat]*4 + [Mud]*3 + [Mountain]*3 + [Grass]*4 + [Forest]*4 + [Desert]
 
@@ -483,21 +523,19 @@ class Player(object):
     points = property(getPoints)
 
     def getRoads(self):
-        for item in self.items:
-            if isinstance(item, Road):
-                yield item
+        return [item for item in self.items
+                if isinstance(item, Road)]
     roads = property(getRoads)
 
     def getSmallSettlements(self):
-        for item in self.items:
-            if isinstance(item, Settlement) and not isinstance(item, City):
-                yield item
+        return [item for item in self.items
+                if isinstance(item, Settlement)
+                and not isinstance(item, City)]
     smallSettlements = property(getSmallSettlements)
 
     def getCities(self):
-        for item in self.items:
-            if isinstance(item, City):
-                yield item
+        return [item for item in self.items
+                if isinstance(item, City)]
     cities = property(getCities)
 
     def add(self, item):
@@ -506,28 +544,33 @@ class Player(object):
         self.activeItem = item
         events.post('PlayerPlacing', self, item)
 
-    def canPlace(self, item):
+    def canPlace(self, itemClass):
         # TODO: I need to do a negative test case
-        if isinstance(item, Settlement):
+        if itemClass == Settlement:
             spots = self.findFreeCornersForSettlement()
-        elif isinstance(item, Road):
+        elif itemClass == City:
+            spots = [x.location for x in self.smallSettlements]
+        elif itemClass == Road:
             spots = self.findFreeEdgesForRoad()
+        else:
+            assert issubclass(itemClass, VictoryCard)
+            return True
         return bool(spots)
 
-    def buy(self, item):
-        price, needs = self.takePrice(item, self.cards)
+    def buy(self, itemClass):
+        price, needs = self.takePrice(itemClass, self.cards)
         assert not needs
 
-    def neededCardClasses(self, item):
+    def neededCardClasses(self, itemClass):
         handCopy = self.cards[:]
-        price, neededCardClasses = self.takePrice(item, handCopy)
+        price, neededCardClasses = self.takePrice(itemClass, handCopy)
         return neededCardClasses
 
-    def takePrice(self, item, cards):
+    def takePrice(self, itemClass, cards):
         '''return (price, neededCardClasses)'''
         price = []
         neededCardClasses = []
-        for cardClass in item.__class__.cost:
+        for cardClass in itemClass.cost:
             satisfiers = [card for card in cards
                           if card.__class__ == cardClass]
             if not satisfiers:
@@ -538,17 +581,24 @@ class Player(object):
         return price, neededCardClasses
 
     @allowedDuring(Stages.playerTurn)
-    def onBuyRequest(self, player, item):
+    def onBuyRequest(self, player, itemClass):
         if player != self or self != game.state.activePlayer:
             return
-        needs = self.neededCardClasses(item)
+        needs = self.neededCardClasses(itemClass)
         if needs:
-            events.post('PlayerCannotAfford', self, item, needs)
+            events.post('PlayerCannotAfford', self, itemClass, needs)
             return
-        if not self.canPlace(item):
-            events.post('PlayerCannotPlace', self, item)
+        if not self.canPlace(itemClass):
+            events.post('PlayerCannotPlace', self, itemClass)
             return
-        self.buy(item)
+        try:
+            item = itemClass.takeOne(self)
+        except LookupError, e:
+            msg = str(e)
+            events.post('PlayerCannotBuy', self, itemClass, msg)
+            print msg
+            return
+        self.buy(itemClass)
         self.add(item)
 
     def placeRobber(self):

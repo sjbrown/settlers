@@ -675,11 +675,9 @@ class Tile(EasySprite, Highlightable):
     def onHintLightTiles(self, tiles):
         if self.tile in tiles:
             self.hintlighted = True
-            self.dirty = True
 
     def onRobberPlaced(self, *args):
         self.hintlighted = False
-        self.dirty = True
 
     def onMouseLeftDown(self, pos):
         if self.hintlighted and self.collides(pos):
@@ -866,7 +864,6 @@ class Edge(EasySprite, Highlightable):
     def onHintLightEdges(self, edges):
         if self.edge in edges:
             self.hintlighted = True
-            self.dirty = True
 
     def onRobberPlaced(self, *args):
         self.dirty = True
@@ -995,7 +992,6 @@ class PygameView:
         self.showRobberCursor = True
         for tSprite in tileGroup:
             tSprite.hintlighted = True
-            tSprite.dirty = True
 
     #----------------------------------------------------------------------
     def onTileClicked(self, tile):
@@ -1434,15 +1430,24 @@ class PlayerDisplay(EasySprite):
 
     #----------------------------------------------------------------------
     def drawCards(self):
-        r = self.rect.move(0,0)
-        r.topleft = 0,0
-
         cards = self.player.cards
         for i, card in enumerate(cards):
             cardImg = pygame.Surface( (10,16) )
             cardImg.fill( card_colors[card.__class__] )
             pygame.draw.rect(cardImg, white, cardImg.get_rect(), 1)
-            cardPos = vect_add((2,2), (3*i,3*i))
+            cardPos = vect_add((2,6), (3*i,3*i))
+            self.image.blit(cardImg, cardPos)
+
+    #----------------------------------------------------------------------
+    def drawVictoryCards(self):
+        for i, card in enumerate(self.player.victoryCards):
+            cardImg = pygame.Surface( (10,16) )
+            cardImg.fill( white )
+            pygame.draw.rect(cardImg, black,
+                             cardImg.get_rect().inflate((-2,-2)), 1)
+            txtImg = font_render(card.__class__.__name__[:2], size=9)
+            blit_at_center(cardImg, txtImg)
+            cardPos = vect_add((32,6), (3*i,3*i))
             self.image.blit(cardImg, cardPos)
 
     #----------------------------------------------------------------------
@@ -1451,6 +1456,7 @@ class PlayerDisplay(EasySprite):
             return
         self.drawBg()
         self.drawCards()
+        self.drawVictoryCards()
         self.dirty = False
 
     #----------------------------------------------------------------------
@@ -1484,6 +1490,11 @@ class PlayerDisplay(EasySprite):
             else:
                 events.post('SkipRobRequest', self.player)
 
+
+    #----------------------------------------------------------------------
+    def onPlayerDrewVictoryCard(self, player, card):
+        if player == self.player:
+            self.dirty = True
 
     #----------------------------------------------------------------------
     def onDiscard(self, player):

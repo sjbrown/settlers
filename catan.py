@@ -337,6 +337,11 @@ class Settlement(FiniteGameObject):
     def takeOne(cls, player):
         return FiniteGameObject.takeOne(cls, player, 'smallSettlements')
 
+    @classmethod
+    def canBeBought(cls, player):
+        spots = player.findFreeCornersForSettlement()
+        return bool(spots)
+
 class City(Settlement):
     cost = [Grain, Grain, Grain, Stone, Stone]
     maxPerPlayer = 5 #TODO check this
@@ -344,6 +349,11 @@ class City(Settlement):
     @classmethod
     def takeOne(cls, player):
         return FiniteGameObject.takeOne(cls, player, 'cities')
+
+    @classmethod
+    def canBeBought(cls, player):
+        spots = [x.location for x in player.smallSettlements]
+        return bool(spots)
 
 class Road(FiniteGameObject):
     cost = [Wood, Brick]
@@ -356,16 +366,22 @@ class Road(FiniteGameObject):
     def takeOne(cls, player):
         return FiniteGameObject.takeOne(cls, player, 'roads')
 
+    @classmethod
+    def canBeBought(cls, player):
+        spots = player.findFreeEdgesForRoad()
+        return bool(spots)
+
 class VictoryCard(FiniteGameObject):
     cost = [Grain, Sheep, Stone]
     def __str__(self):
         return '<VictoryCard %s %s>' % (self.__class__.__name__, id(self))
     __repr__ = __str__
 
+    @classmethod
     def takeOne(cls, player):
         # TODO: shuffle
         try:
-            subclass = allVictoryCardClasses.pop()
+            subclass = allVictoryCardClasses.pop(0)
         except IndexError:
             raise IndexError('There are no more victory cards in the deck')
         return subclass()
@@ -539,23 +555,14 @@ class Player(object):
     cities = property(getCities)
 
     def add(self, item):
-        item.owner = self
-        self.items.append(item)
-        self.activeItem = item
-        events.post('PlayerPlacing', self, item)
-
-    def canPlace(self, itemClass):
-        # TODO: I need to do a negative test case
-        if itemClass == Settlement:
-            spots = self.findFreeCornersForSettlement()
-        elif itemClass == City:
-            spots = [x.location for x in self.smallSettlements]
-        elif itemClass == Road:
-            spots = self.findFreeEdgesForRoad()
+        if isinstance(item, VictoryCard):
+            self.victoryCards.append(item)
+            events.post('PlayerDrewVictoryCard', self, item)
         else:
-            assert issubclass(itemClass, VictoryCard)
-            return True
-        return bool(spots)
+            item.owner = self
+            self.items.append(item)
+            self.activeItem = item
+            events.post('PlayerPlacing', self, item)
 
     def buy(self, itemClass):
         price, needs = self.takePrice(itemClass, self.cards)
@@ -588,9 +595,11 @@ class Player(object):
         if needs:
             events.post('PlayerCannotAfford', self, itemClass, needs)
             return
-        if not self.canPlace(itemClass):
-            events.post('PlayerCannotPlace', self, itemClass)
-            return
+        if hasattr(itemClass, 'canBeBought'):
+            if not itemClass.canBeBought(self):
+                msg = '%s constraints not satisfied' % itemClass
+                events.post('PlayerCannotBuy', self, itemClass, msg)
+                return
         try:
             item = itemClass.takeOne(self)
         except LookupError, e:

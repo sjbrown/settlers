@@ -193,27 +193,26 @@ class KeyboardController:
                     events.post( ev )
 
 #------------------------------------------------------------------------------
-class EndTurnButton(EasySprite, Highlightable):
-    def __init__(self):
+class TextButton(EasySprite, Highlightable):
+    def __init__(self, size, text):
         EasySprite.__init__(self)
         Highlightable.__init__(self)
         events.registerListener(self)
-        self.image = EasySurface( (150,50) )
-        self.rect = self.image.get_rect()
         hudGroup.add(self)
-
+        self.text = text
+        self.rect = Rect(0,0, *size)
+        self.image = EasySurface(self.rect.size)
         self.draw()
 
     #----------------------------------------------------------------------
     def update(self):
-        #print 'update', self, 'got called.  d:', self.dirty
         if not self.dirty:
             return
         self.draw()
 
     #----------------------------------------------------------------------
     def draw(self):
-        self.image = EasySurface( (150,50) )
+        self.image.fill(black)
         r = self.rect.move(-self.x, -self.y)
         pygame.draw.rect(self.image, blue, r, 2)
 
@@ -223,7 +222,7 @@ class EndTurnButton(EasySprite, Highlightable):
             color = (255,100,100)
         else:
             color = red
-        txtImg = font_render('END TURN', color=color)
+        txtImg = font_render(self.text, color=color)
         blit_at_center(self.image, txtImg)
 
         self.dirty = False
@@ -231,49 +230,34 @@ class EndTurnButton(EasySprite, Highlightable):
     #----------------------------------------------------------------------
     def onMouseMotion(self, pos, buttons):
         self.checkHover(pos)
+
+
+#------------------------------------------------------------------------------
+class EndTurnButton(TextButton):
+    def __init__(self):
+        TextButton.__init__(self, (150,50), 'END TURN')
 
     #----------------------------------------------------------------------
     def onMouseLeftDown(self, pos):
         if self.rect.collidepoint(pos):
             events.post('TurnFinishRequest', humanPlayer)
 
+
 #------------------------------------------------------------------------------
-class SaveGameButton(EasySprite, Highlightable):
+class TradeButton(TextButton):
     def __init__(self):
-        EasySprite.__init__(self)
-        Highlightable.__init__(self)
-        events.registerListener(self)
-        hudGroup.add(self)
-        self.image = EasySurface( (150,50) )
-        self.rect = self.image.get_rect()
-        self.draw()
+        TextButton.__init__(self, (150,50), 'TRADE')
 
     #----------------------------------------------------------------------
-    def update(self):
-        if not self.dirty:
-            return
-        self.draw()
+    def onMouseLeftDown(self, pos):
+        if self.rect.collidepoint(pos):
+            print 'Starting Trade'
 
-    #----------------------------------------------------------------------
-    def draw(self):
-        self.image = EasySurface( (150,50) )
-        r = self.rect.move(-self.x, -self.y)
-        pygame.draw.rect(self.image, blue, r, 2)
 
-        if self.hoverlighted:
-            color = white
-        elif self.hintlighted:
-            color = (255,100,100)
-        else:
-            color = red
-        txtImg = font_render('SAVE GAME', color=color)
-        blit_at_center(self.image, txtImg)
-
-        self.dirty = False
-
-    #----------------------------------------------------------------------
-    def onMouseMotion(self, pos, buttons):
-        self.checkHover(pos)
+#------------------------------------------------------------------------------
+class SaveGameButton(TextButton):
+    def __init__(self):
+        TextButton.__init__(self, (150,50), 'SAVE GAME')
 
     #----------------------------------------------------------------------
     def onMouseLeftDown(self, pos):
@@ -281,6 +265,7 @@ class SaveGameButton(EasySprite, Highlightable):
             print '        SAVED   **************'
             import saved_game
             saved_game.save()
+
 
 #------------------------------------------------------------------------------
 class Console(EasySprite):
@@ -922,8 +907,12 @@ class PygameView:
         dbutton.topleft = 600, 300
         ebutton = EndTurnButton()
         ebutton.topleft = 600, 440
-        ebutton = SaveGameButton()
-        ebutton.topleft = 600, 520
+
+        tbutton = TradeButton()
+        tbutton.topleft = 600, 520
+        
+        sbutton = SaveGameButton()
+        sbutton.topleft = 600, 600
 
         console = Console()
         console.topleft = 10, 640

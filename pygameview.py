@@ -252,6 +252,10 @@ class TradeButton(TextButton):
     def onMouseLeftDown(self, pos):
         if self.rect.collidepoint(pos):
             print 'Starting Trade'
+            if catan.game.state.stage != catan.Stage.playerTurn:
+                print "Can only trade during active player's turn"
+                return
+            events.post('ShowTrade')
 
 
 #------------------------------------------------------------------------------
@@ -1002,6 +1006,11 @@ class PygameView:
         ddisplay.center = self.window.get_rect().center
 
     #----------------------------------------------------------------------
+    def onShowTrade(self):
+        tdisplay = TradeDisplay()
+        tdisplay.center = self.window.get_rect().center
+
+    #----------------------------------------------------------------------
     def onBoardCreated(self, board):
         self.showMap(board)
 
@@ -1075,23 +1084,14 @@ class BoardDisplay(object):
         walk_corners_along_tile(tile, visitFn)
 
 #------------------------------------------------------------------------------
-class DiscardTextButton(EasySprite, Highlightable):
+class DiscardTextButton(TextButton):
     def __init__(self, pos):
         EasySprite.__init__(self)
         Highlightable.__init__(self)
-        self.draw()
-        self.rect = self.image.get_rect()
-        self.rect.topleft = pos
-
-    def draw(self):
-        if self.hintlighted:
-            self.image = font_render('DISCARD', color=(255,50,50))
-        else:
-            self.image = font_render('DISCARD')
-
-    def update(self):
-        if not self.dirty:
-            return
+        events.registerListener(self)
+        self.text = 'DISCARD'
+        self.rect = Rect(pos[0], pos[1], 70,15)
+        self.image = EasySurface(self.rect.size)
         self.draw()
 
 #------------------------------------------------------------------------------

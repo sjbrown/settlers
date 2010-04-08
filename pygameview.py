@@ -3,6 +3,7 @@
 import sys
 import time
 import string
+import itertools
 
 from collections import defaultdict
 
@@ -45,6 +46,23 @@ green = (0,255,0)
 blue = (0,0,255)
 black = (0,0,0)
 white = (255,255,255)
+
+# -----------------------------------------------------------------------------
+def card_img(card):
+    cardImg = pygame.Surface( (10,16) )
+    cardImg.fill( card_colors[card.__class__] )
+    pygame.draw.rect(cardImg, white, cardImg.get_rect(), 1)
+    return cardImg
+
+# -----------------------------------------------------------------------------
+def draw_cards(cards, destImg, x, y, deltaX, deltaY, number=False):
+    for i, card in enumerate(cards):
+        cardImg = card_img(card)
+        cardPos = vect_add((x,y), (deltaX*i,deltaY*i))
+        destImg.blit(cardImg, cardPos)
+    if number:
+        txtImg = font_render(str(i+1), color=white)
+        destImg.blit(txtImg, (x+5, y+8))
 
 # -----------------------------------------------------------------------------
 class Highlightable(object):
@@ -252,7 +270,7 @@ class TradeButton(TextButton):
     def onMouseLeftDown(self, pos):
         if self.rect.collidepoint(pos):
             print 'Starting Trade'
-            if catan.game.state.stage != catan.Stage.playerTurn:
+            if catan.game.state.stage != catan.Stages.playerTurn:
                 print "Can only trade during active player's turn"
                 return
             events.post('ShowTrade')
@@ -1084,6 +1102,42 @@ class BoardDisplay(object):
         walk_corners_along_tile(tile, visitFn)
 
 #------------------------------------------------------------------------------
+class CardAddButton(EasySprite):
+    def __init__(self, parent, pos, cardClass, symbol='+'):
+        EasySprite.__init__(self)
+        self.image = font_render(symbol, size=50)
+        self.rect = self.image.get_rect()
+        self.rect.topleft = pos
+
+        self.cardClass = cardClass
+        self.parent = parent
+
+    def cardSubset(self):
+        return set([card for card in humanPlayer.cards
+                    if isinstance(card, self.cardClass)])
+
+#------------------------------------------------------------------------------
+class CardRemoveButton(CardAddButton):
+    def __init__(self, parent, pos, cardClass):
+        CardAddButton.__init__(self, parent, pos, cardClass, symbol='-')
+
+#------------------------------------------------------------------------------
+class DiscardAddButton(CardAddButton):
+    def click(self):
+        group = self.cardSubset()
+        undiscarded = group.difference(set(self.parent._discards))
+        if undiscarded:
+            self.parent.addDiscard(undiscarded.pop())
+
+#------------------------------------------------------------------------------
+class DiscardRemoveButton(CardRemoveButton):
+    def click(self):
+        group = self.cardSubset()
+        discarded = group.intersection(set(self.parent._discards))
+        if discarded:
+            self.parent.removeDiscard(discarded.pop())
+
+#------------------------------------------------------------------------------
 class DiscardTextButton(TextButton):
     def __init__(self, pos):
         EasySprite.__init__(self)
@@ -1093,47 +1147,6 @@ class DiscardTextButton(TextButton):
         self.rect = Rect(pos[0], pos[1], 70,15)
         self.image = EasySurface(self.rect.size)
         self.draw()
-
-#------------------------------------------------------------------------------
-class DiscardAddButton(EasySprite):
-    def __init__(self, parent, pos, cardClass):
-        EasySprite.__init__(self)
-        self.image = font_render('+', size=50)
-        self.rect = self.image.get_rect()
-        self.rect.topleft = pos
-
-        self.cardClass = cardClass
-        self.parent = parent
-
-    #----------------------------------------------------------------------
-    def click(self):
-        group = set([card for card in self.parent.player.cards
-                     if isinstance(card, self.cardClass)])
-
-        undiscarded = group.difference(set(self.parent._discards))
-        if undiscarded:
-            self.parent.addDiscard(undiscarded.pop())
-
-#------------------------------------------------------------------------------
-class DiscardRemoveButton(EasySprite):
-    def __init__(self, parent, pos, cardClass):
-        EasySprite.__init__(self)
-        self.image = font_render('-', size=50)
-        self.rect = self.image.get_rect()
-        self.rect.topleft = pos
-
-        self.cardClass = cardClass
-        self.parent = parent
-
-    #----------------------------------------------------------------------
-    def click(self):
-        group = set([card for card in self.parent.player.cards
-                     if isinstance(card, self.cardClass)])
-
-        discarded = group.intersection(set(self.parent._discards))
-        if discarded:
-            self.parent.removeDiscard(discarded.pop())
-
 
 #------------------------------------------------------------------------------
 class DiscardDisplay(EasySprite):
@@ -1187,7 +1200,6 @@ class DiscardDisplay(EasySprite):
                    catan.Wood]
         x = 10
         y = 20
-        #print self.player
         for cls in classes:
             addPos = vect_add((x,y), (0, -25))
             self.addButtons[cls] = DiscardAddButton(self, addPos, cls)
@@ -1199,9 +1211,7 @@ class DiscardDisplay(EasySprite):
                      if isinstance(card, cls)]
 
             for i, card in enumerate(group):
-                cardImg = pygame.Surface( (10,16) )
-                cardImg.fill( card_colors[card.__class__] )
-                pygame.draw.rect(cardImg, white, cardImg.get_rect(), 1)
+                cardImg = card_img(card)
                 cardPos = vect_add((x,y), (2*i,3*i))
                 self.image.blit(cardImg, cardPos)
             x += 30
@@ -1254,6 +1264,214 @@ class DiscardDisplay(EasySprite):
             if self.dButton.hintlighted:
                 events.post('DiscardRequest', self.player, self._discards)
             
+#------------------------------------------------------------------------------
+class QuitTradeButton(TextButton):
+    def __init__(self, pos):
+        EasySprite.__init__(self)
+        Highlightable.__init__(self)
+        events.registerListener(self)
+        self.text = 'QUIT TRADE'
+        self.rect = Rect(pos[0], pos[1], 100,12)
+        self.image = EasySurface(self.rect.size)
+        self.draw()
+
+    def click(self):
+        events.post('HideTrade')
+
+#------------------------------------------------------------------------------
+class TradeGiveButton(CardAddButton):
+    def __init__(self, parent, pos, cardClass):
+        CardAddButton.__init__(self, parent, pos, cardClass, symbol='^')
+
+    def click(self):
+        group = self.cardSubset()
+        given = self.parent._cardsToGive.get(self.cardClass, [])
+        ungiven = group.difference(set(given))
+        print 'got click', ungiven
+        if ungiven:
+            self.parent.addCard(ungiven.pop())
+
+#------------------------------------------------------------------------------
+class TradeTakeButton(CardAddButton):
+    def __init__(self, parent, pos, cardClass):
+        CardAddButton.__init__(self, parent, pos, cardClass, symbol='v')
+
+    def click(self):
+        self.parent.takeCard(self.cardClass)
+
+#------------------------------------------------------------------------------
+class TradeDisplay(EasySprite):
+    def __init__(self):
+        EasySprite.__init__(self)
+        events.registerListener(self)
+        hudGroup.add(self)
+        self.image = EasySurface( (280,180) )
+        self.rect = self.image.get_rect()
+
+        # {cardClass: [card1, card2, ...], ...}
+        self._cardsToGive = {}
+        # {cardClass1: 3, cardClass2: 1, ...}
+        self._cardClassesToTake = defaultdict(lambda:0)
+
+        # {opponent: (toGive, toTake), ...}
+        self._opponentProposals = {}
+
+        self.giveButtons = {}
+        self.takeButtons = {}
+
+        self.textButtons = [QuitTradeButton((180,160))]
+
+        self.drawBg()
+        self.drawCards()
+        self.drawOpponents()
+        self.drawButtons()
+
+        self.dirty = True
+    
+    #----------------------------------------------------------------------
+    def propose(self):
+        cardClassesToGive = {}
+        for cardClass, cardList in self._cardsToGive.items():
+            cardClassesToGive[cardClass] = len(cardList)
+        events.post('ProposeTrade', humanPlayer,
+                    cardClassesToGive, self._cardClassesToTake)
+
+    #----------------------------------------------------------------------
+    def addCard(self, card):
+        cardClass = card.__class__
+        if self._cardClassesToTake.get(cardClass):
+            self._cardClassesToTake[cardClass] -= 1
+        else:
+            cardList = self._cardsToGive.setdefault(cardClass, [])
+            cardList.append(card)
+        self.propose()
+        self.dirty = True
+
+    #----------------------------------------------------------------------
+    def takeCard(self, cardClass):
+        if self._cardsToGive.get(cardClass):
+            self._cardsToGive[cardClass].pop()
+        else:
+            self._cardClassesToTake[cardClass] += 1
+        self.propose()
+        self.dirty = True
+
+    #----------------------------------------------------------------------
+    def drawBg(self):
+        self.image.fill( (0,0,20) )
+        r = self.rect.move(-self.x,-self.y)
+        pygame.draw.rect(self.image, blue, r, 8)
+        pygame.draw.rect(self.image, (200,200,255), r, 1)
+
+    #----------------------------------------------------------------------
+    def drawButtons(self):
+        for button in self.textButtons:
+            button.update()
+            self.image.blit(button.image, button.rect)
+
+        for button in self.giveButtons.values():
+            self.image.blit(button.image, button.rect)
+            cards = self._cardsToGive.get(button.cardClass, [])
+            howMany = len(cards)
+            txtImg = font_render(str(howMany))
+            pos = vect_add(button.rect.midtop, (0,-5))
+            self.image.blit(txtImg, pos)
+
+        for button in self.takeButtons.values():
+            self.image.blit(button.image, button.rect)
+            howMany = self._cardClassesToTake[button.cardClass]
+            txtImg = font_render(str(howMany))
+            pos = vect_add(button.rect.midbottom, (0,5))
+            self.image.blit(txtImg, pos)
+
+    #----------------------------------------------------------------------
+    def drawCards(self):
+        r = self.rect.move(-self.x,-self.y)
+
+        classes = [catan.Stone, catan.Brick, catan.Grain, catan.Sheep,
+                   catan.Wood]
+        x = 40
+        y = 100
+        for cls in classes:
+            givePos = vect_add((x,y), (0, -25))
+            self.giveButtons[cls] = TradeGiveButton(self, givePos, cls)
+
+            takePos = vect_add((x,y), (0, 30))
+            self.takeButtons[cls] = TradeTakeButton(self, takePos, cls)
+
+            givenCards = self._cardsToGive.get(cls, [])
+            group = [card for card in humanPlayer.cards
+                     if isinstance(card, cls)
+                     and card not in givenCards]
+
+            for i, card in enumerate(group):
+                cardImg = card_img(card)
+                cardPos = vect_add((x,y), (2*i,3*i))
+                self.image.blit(cardImg, cardPos)
+            x += 30
+
+    #----------------------------------------------------------------------
+    def drawOpponents(self):
+        r = self.rect.move(-self.x,-self.y)
+        opponents = catan.game.players[:]
+        opponents.remove(humanPlayer)
+        padX, padY = 15, 5
+        for i, opponent in enumerate(opponents):
+            txtImg = font_render(str(opponent.identifier),
+                                 color=opponent.color)
+            self.image.blit(txtImg, (padX+40*i, padY))
+
+    #----------------------------------------------------------------------
+    def update(self):
+        self.drawBg()
+        self.drawCards()
+        self.drawOpponents()
+        self.drawButtons()
+
+        self.dirty = False
+
+    #----------------------------------------------------------------------
+    def onProposeTrade(self, player, toGive, toTake):
+        if player == humanPlayer:
+            return
+        self._opponentProposals[player] = (toGive, toTake)
+
+    #----------------------------------------------------------------------
+    def onTrade(self, player1, cards1, player2, cards2):
+        self.dirty = True
+        self.reset()
+
+    #----------------------------------------------------------------------
+    def onHideTrade(self):
+        hudGroup.remove(self)
+        events.unregisterListener(self)
+        self.giveButtons = None
+        self.takeButtons = None
+        self.kill()
+
+    #----------------------------------------------------------------------
+    def onMouseMotion(self, pos, buttons):
+        if not self.rect.collidepoint(pos):
+            return
+        innerPos = vect_diff(pos, self.topleft)
+        for button in (self.giveButtons.values()
+                      + self.takeButtons.values()
+                      + self.textButtons):
+            if hasattr(button, 'onMouseMotion'):
+                button.onMouseMotion(innerPos, buttons)
+
+    #----------------------------------------------------------------------
+    def onMouseLeftDown(self, pos):
+        if not self.rect.collidepoint(pos):
+            return
+        self.dirty = True
+        innerPos = vect_diff(pos, self.topleft)
+        for button in (self.giveButtons.values()
+                      + self.takeButtons.values()
+                      + self.textButtons):
+            if button.rect.collidepoint(innerPos):
+                button.click()
+
 
 #------------------------------------------------------------------------------
 class OpponentButton(EasySprite):
@@ -1285,12 +1503,7 @@ class OpponentButton(EasySprite):
         r.topleft = 0,0
 
         cards = self.opponent.cards
-        for i, card in enumerate(cards):
-            cardImg = pygame.Surface( (10,16) )
-            cardImg.fill( card_colors[card.__class__] )
-            pygame.draw.rect(cardImg, white, cardImg.get_rect(), 1)
-            cardPos = vect_add((2,2), (3*i,3*i))
-            self.image.blit(cardImg, cardPos)
+        draw_cards(cards, self.image, 2, 2, 3, 3)
 
     #----------------------------------------------------------------------
     def update(self):
@@ -1360,7 +1573,7 @@ class ChooseVictimDisplay(EasySprite):
         if player == self.player:
             hudGroup.remove(self)
             events.unregisterListener(self)
-            self.addButtons = None
+            self.giveButtons = None
             self.removeButtons = None
             self.kill()
 
@@ -1420,12 +1633,7 @@ class PlayerDisplay(EasySprite):
     #----------------------------------------------------------------------
     def drawCards(self):
         cards = self.player.cards
-        for i, card in enumerate(cards):
-            cardImg = pygame.Surface( (10,16) )
-            cardImg.fill( card_colors[card.__class__] )
-            pygame.draw.rect(cardImg, white, cardImg.get_rect(), 1)
-            cardPos = vect_add((2,6), (3*i,3*i))
-            self.image.blit(cardImg, cardPos)
+        draw_cards(cards, self.image, 2, 6, 3, 3)
 
     #----------------------------------------------------------------------
     def drawVictoryCards(self):

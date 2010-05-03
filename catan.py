@@ -229,7 +229,7 @@ class GameState(object):
 
     def onPlayerPointChange(self, player):
         if player.points >= 10:
-            self.stage = gameOver
+            self.stage = Stages.gameOver
 
     @allowedDuring(Stages.playerTurn)
     def onTurnFinishRequest(self, player):
@@ -509,6 +509,8 @@ class Player(object):
         self.items = []
         self.cards = []
         self.victoryCards = []
+        self.offer = []
+        self.wants = []
         self.latestItem = None
         self.activeItem = None
         events.registerListener(self)
@@ -519,6 +521,11 @@ class Player(object):
         return '<Player %s>' % str(self.identifier)
     def __repr__(self):
         return str(self)
+
+    def getProposal(self):
+        offerClasses = [card.__class__ for card in self.offer]
+        return [offerClasses, self.wants]
+    proposal = property(getProposal)
 
     def getPoints(self):
         points = 0
@@ -726,6 +733,22 @@ class Player(object):
         if recipient == self:
             self.cards += cards
 
+    def onConfirmProposal(self, player, opponent, playerCards, opponentCards):
+        if self == player:
+            for card in playerCards:
+                self.cards.remove(card)
+            for card in opponentCards:
+                self.cards.append(card)
+        elif self == opponent:
+            for card in playerCards:
+                self.cards.append(card)
+            for card in opponentCards:
+                self.cards.remove(card)
+        self.offer = []
+        self.wants = []
+
+
+
 class HumanPlayer(Player):
 
     def onClickCorner(self, corner):
@@ -772,6 +795,44 @@ class HumanPlayer(Player):
                 tiles = self.findFreeTilesForRobber()
                 events.post('HintLightTiles', tiles)
 
+
+    def onProposeTrade(self, player, toGive, toTake):
+        if player == self:
+            self.offer = []
+            for cls in toGive:
+                for card in self.cards:
+                    if card.__class__ == cls and card not in self.offer:
+                        self.offer.append(card)
+                        break
+            self.wants = toTake
+
+    def onConfirmProposalRequest(self, opponent, proposal):
+        if game.state.activePlayer != self:
+            return
+        giveCardClasses = proposal[0][:] #copy
+        takeCardClasses = proposal[1][:] #copy
+        for card in opponent.offer:
+            try:
+                giveCardClasses.remove(card.__class__)
+            except ValueError:
+                print 'fail confirm'
+                raise
+        if giveCardClasses != []:
+            print 'fail confirm'
+            return
+        for card in self.offer:
+            try:
+                takeCardClasses.remove(card.__class__)
+            except ValueError:
+                print 'fail confirm'
+                raise
+        if takeCardClasses != []:
+            print 'fail confirm'
+            return
+        events.post('ConfirmProposal', self, opponent,
+                    self.offer, opponent.offer)
+
+
 class CPUPlayer(Player):
     def doInitialPlacement(self):
         return self.doPlacement()
@@ -811,6 +872,13 @@ class CPUPlayer(Player):
         discards = self.cards[half:]
         events.post('DiscardRequest', self, discards)
 
+    def makeProposal(self, toGive, toTake):
+        self.offer = [self.cards[0]]
+        self.wants = [random.choice([Stone, Brick, Grain, Sheep, Wood])]
+        events.post('ProposeTrade', self,
+                    [card.__class__ for card in self.offer],
+                    self.wants )
+
     def onPlayerPlacing(self, player, item):
         if game.state.activePlayer == self:
             if game.state.stage == Stages.initialPlacement:
@@ -820,6 +888,8 @@ class CPUPlayer(Player):
 
     def onStageChange(self, newStage):
         print self, 'sees new stage', newStage
+        self.offer = []
+        self.wants = []
         if game.state.stage == Stages.sevenRolledDiscard:
             self.discard()
 
@@ -832,6 +902,15 @@ class CPUPlayer(Player):
             events.post('TurnFinishRequest', self)
         if game.state.stage == Stages.chooseVictim:
             self.chooseVictim()
+
+    def onProposeTrade(self, player, toGive, toTake):
+        if player != self and player == game.state.activePlayer:
+            if self.offer:
+                return # already made an offer
+            if not self.cards:
+                return
+            self.makeProposal(toGive, toTake)
+
 
 game = None
 

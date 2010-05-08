@@ -289,7 +289,6 @@ class TradeButton(TextButton):
     #----------------------------------------------------------------------
     def onMouseLeftDown(self, pos):
         if self.rect.collidepoint(pos):
-            print 'Starting Trade'
             if catan.game.state.stage != catan.Stages.playerTurn:
                 print "Can only trade during active player's turn"
                 return
@@ -1311,7 +1310,6 @@ class ProposalMatchButton(TextButton):
             return
         if not (self.opponent and self.opponent.proposal):
             return
-        print ('match clicked .............')
         self.parent.matchProposal(self.opponent.proposal)
 
 #------------------------------------------------------------------------------
@@ -1835,7 +1833,6 @@ class PlayerDisplay(EasySprite):
                     events.post('RobRequest', self.player,
                                 possibleVictims[0])
                 else:
-                    #print 'show choose vict'
                     events.post('ShowChooseVictim', self.player,
                                 possibleVictims)
             else:

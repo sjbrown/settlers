@@ -234,13 +234,26 @@ MixInClass( Game, CopyableGame )
 #------------------------------------------------------------------------------
 class CopyableGameState(Serializable):
     copyworthy_attrs = ['game', '_stage', '_activePlayer',
-                        'initialPlacementDirection']
+                        'initialPlacementDirection', 'awaitingDiscard']
     registry_attrs = ['game', '_activePlayer']
 
     def getStateToCopy(self, registry):
         if self._stage in [Stages.waitingForPlayers, Stages.setup]:
             raise Exception('Can not save game that has not started')
         return Serializable.getStateToCopy(self, registry)
+
+    def unserialize_awaitingDiscard(self, stateDict, registry):
+        neededObjIDs = []
+        self.awaitingDiscard = []
+        playerIDs = stateDict['awaitingDiscard']
+        for value in playerIDs:
+            if value in registry:
+                self.awaitingDiscard.append(registry[value])
+            else:
+                placeholder = Placeholder(value, registry)
+                self.awaitingDiscard.append(placeholder)
+                neededObjIDs.append(value)
+        return neededObjIDs
 
     def postUnserialize(self):
         events.registerListener(self)
@@ -288,6 +301,10 @@ class CopyableCard(Serializable):
         return []
 
 MixInClass( Card, CopyableCard )
+
+#------------------------------------------------------------------------------
+class CopyableVictoryCard(CopyableCard): pass
+MixInClass( VictoryCard, CopyableVictoryCard )
 
 #------------------------------------------------------------------------------
 class CopyableTerrain(Serializable):
@@ -457,7 +474,8 @@ MixInClass( Edge, CopyableEdge )
 
 #------------------------------------------------------------------------------
 class CopyablePlayer(Serializable):
-    copyworthy_attrs = ['identifier', 'color', 'latestItem', 'items', 'cards']
+    copyworthy_attrs = ['identifier', 'color', 'latestItem', 'items', 'cards',
+                        'victoryCards']
 
     def unserialize_items(self, stateDict, registry):
         neededObjIDs = []
@@ -487,9 +505,22 @@ class CopyablePlayer(Serializable):
 
         return neededObjIDs
 
+    def unserialize_victoryCards(self, stateDict, registry):
+        neededObjIDs = []
+        self.victoryCards = []
+        cardIDs = stateDict['victoryCards']
+        for value in cardIDs:
+            if value in registry:
+                self.victoryCards.append(registry[value])
+            else:
+                placeholder = Placeholder(value, registry)
+                self.victoryCards.append(registry[value])
+                neededObjIDs.append(value)
+
+        return neededObjIDs
+
     def postUnserialize(self):
         self.activeItem = None
-        self.victoryCards = []
         # TODO: these should be unserialized or something
         self.hasLongestRoad = False
         self.hasLargestArmy = False
@@ -529,6 +560,7 @@ def test_Player():
      'identifier': 1,
      'latestItem': id(p1.latestItem),
      'cards': [],
+     'victoryCards': [],
      'items': [id(p1.items[0]), id(p1.items[1])],
     }
     reg1 = {id(p1.items[0]): p1.items[0],
@@ -548,6 +580,7 @@ def test_Player():
       'identifier': 4,
       'latestItem': None,
       'cards': [],
+      'victoryCards': [],
       'items': [id(p4.items[0])],
       }
     reg1.update( {id(p4.items[0]): p4.items[0],} )

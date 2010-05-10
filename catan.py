@@ -105,6 +105,7 @@ class GameState(object):
         self._stage = Stages.waitingForPlayers
         self._activePlayer = None
         self._activeCountdown = None
+        self.awaitingDiscard = []
         self.initialPlacementDirection = 1
         events.registerListener(self)
 
@@ -187,7 +188,12 @@ class GameState(object):
     def onDiceRoll(self, d1, d2):
         rollValue = d1+d2
         if rollValue == 7:
-            if any([len(player.cards) > 7 for player in self.game.players]):
+            found = False
+            for player in self.game.players:
+                if player.mustDiscard():
+                    found = True
+                    self.awaitingDiscard.append(player)
+            if found:
                 self.stage = Stages.sevenRolledDiscard
             else:
                 self.stage = Stages.rolledRobberPlacement
@@ -197,7 +203,8 @@ class GameState(object):
 
     @allowedDuring(Stages.sevenRolledDiscard)
     def onDiscard(self, player):
-        if any([len(player.cards) > 7 for player in self.game.players]):
+        self.awaitingDiscard.remove(player)
+        if self.awaitingDiscard:
             return # someone still needs to discard
         self.stage = Stages.rolledRobberPlacement
         self.activePlayer.placeRobber()
@@ -594,6 +601,9 @@ class Player(object):
             price.append(satisfiers[0])
         return price, neededCardClasses
 
+    def mustDiscard(self):
+        return len(self.cards) > 7
+
     @allowedDuring(Stages.playerTurn)
     def onBuyRequest(self, player, itemClass):
         if player != self or self != game.state.activePlayer:
@@ -722,8 +732,13 @@ class Player(object):
     def onDiscardRequest(self, player, discards):
         if self != player:
             return
+        print 'player %s discards %d from %d' %\
+               (self, len(discards), len(self.cards))
         if not all([card in self.cards for card in discards]):
             print 'Player tried to discard cards that he did not own'
+            return
+        if not len(discards) == len(self.cards)/2:
+            print 'Player tried to discard the wrong amout of cards'
             return
         for card in discards:
             self.cards.remove(card)
@@ -869,7 +884,7 @@ class CPUPlayer(Player):
         if len(self.cards) <= 7:
             return
         half = len(self.cards)//2 # the floor is the proper behaviour
-        discards = self.cards[half:]
+        discards = self.cards[:half]
         events.post('DiscardRequest', self, discards)
 
     def makeProposal(self, toGive, toTake):

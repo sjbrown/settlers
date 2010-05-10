@@ -438,6 +438,10 @@ class DiceButton(EasySprite, Highlightable):
 
     #----------------------------------------------------------------------
     def update(self):
+        if catan.game.state.stage == catan.Stages.preRollSoldier:
+            self.hintlighted = True
+        else:
+            self.hintlighted = False
         self.image.fill( (0,0,0) )
         self.drawBg()
         self.drawText()
@@ -477,6 +481,7 @@ class BuyButton(EasySprite, Highlightable):
     def update(self):
         if not self.dirty:
             return
+        self.calculateHintlight()
         self.draw()
 
     #----------------------------------------------------------------------
@@ -506,7 +511,7 @@ class BuyButton(EasySprite, Highlightable):
             events.post('BuyRequest', humanPlayer, self.itemClass)
 
     #----------------------------------------------------------------------
-    def calculateHighlight(self):
+    def calculateHintlight(self):
         item = self.itemClass()
         if not humanPlayer.neededCardClasses(item):
             self.hintlighted = True
@@ -516,20 +521,24 @@ class BuyButton(EasySprite, Highlightable):
     #----------------------------------------------------------------------
     def onRob(self, thief, victim, card):
         if humanPlayer in [thief, victim]:
-            self.calculateHighlight()
+            self.dirty = True
 
     #----------------------------------------------------------------------
     def onDiscard(self, player):
         if player == humanPlayer:
-            self.calculateHighlight()
+            self.dirty = True
         
     #----------------------------------------------------------------------
     def onHarvest(self, cards, sourceTile, recipient):
         if recipient == humanPlayer:
-            self.calculateHighlight()
+            self.dirty = True
 
     #----------------------------------------------------------------------
     def onPlayerPlacing(self, *args):
+        self.dirty = True
+
+    #----------------------------------------------------------------------
+    def onPlayerDrewVictoryCard(self, *args):
         self.dirty = True
 
 

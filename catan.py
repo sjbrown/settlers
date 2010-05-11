@@ -234,7 +234,12 @@ class GameState(object):
     def onCardHarvestOver(self):
         self.stage = Stages.playerTurn
 
-    def onPlayerPointChange(self, player):
+    @allowedDuring(Stages.playerTurn)
+    def onItemPlaced(self, item):
+        if item.owner.points >= 10:
+            self.stage = Stages.gameOver
+
+    def onPlayerDrewVictoryCard(self, player, card):
         if player.points >= 10:
             self.stage = Stages.gameOver
 
@@ -537,6 +542,9 @@ class Player(object):
     def getPoints(self):
         points = 0
         for item in self.items:
+            if not item.location:
+                # hasn't been set down yet
+                continue
             if isinstance(item, Settlement):
                 if isinstance(item, City):
                     points += 2

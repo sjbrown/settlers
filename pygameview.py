@@ -1773,6 +1773,11 @@ class PlayerDisplay(EasySprite):
         r = self.rect.move(0,0)
         r.topleft = 0,0
         pygame.draw.rect(self.image, blue, r, 8)
+        
+        if self.player.points >= 10:
+            r2 = r.inflate(10,10)
+            r2.center = r.center
+            pygame.draw.rect(self.image, white, r2)
 
         if catan.game.state.activePlayer == self.player:
             self.active = True
@@ -1784,11 +1789,12 @@ class PlayerDisplay(EasySprite):
 
         txtImg = font_render(str(self.player.identifier),
                              color=self.player.color)
-        self.image.blit(txtImg, r.midtop)
+        pos = vect_add(r.midtop, (10,4))
+        self.image.blit(txtImg, pos)
 
         txtImg = font_render(str(self.player.points),
                              color=self.player.color)
-        pos = vect_add(r.midtop, (10,0))
+        pos = vect_add(r.midtop, (20,4))
         self.image.blit(txtImg, pos)
 
     #----------------------------------------------------------------------
@@ -1871,6 +1877,11 @@ class PlayerDisplay(EasySprite):
     #----------------------------------------------------------------------
     def onConfirmProposal(self, *args):
         self.dirty = True
+
+    #----------------------------------------------------------------------
+    def onItemPlaced(self, *args):
+        self.dirty = True
+
 
 
 humanPlayer = None

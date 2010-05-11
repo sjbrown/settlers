@@ -63,6 +63,8 @@ def save(fname='./'+SAVE_NAME+'.py'):
             dicts[id(item)] = saveObj(item)
         for card in p.cards:
             dicts[id(card)] = saveObj(card)
+        for card in p.victoryCards:
+            dicts[id(card)] = saveObj(card)
 
     for t in mapmodel.allTiles:
         dicts[id(t.terrain)] = saveObj(t.terrain)
@@ -121,6 +123,7 @@ def deserialize(loadReg, srcReg, dicts, objID, clsModule, clsName):
         else:
             print '??? Skipping', obj
     else:
+        print 'creating placeholder for ', cls, objID
         obj = Placeholder(objID, loadReg)
         loadReg[objID] = obj
         obj.placeholder_setDict(dicts[objID])

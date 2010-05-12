@@ -66,6 +66,12 @@ class Edge(BuildableLocation):
     def __repr__(self):
         return '<%s %s>' % (self.name, self.corners)
 
+    def getRoad(self):
+        if not self.stuff:
+            return None
+        return self.stuff[0]
+    road = property(getRoad)
+
     def getTiles(self):
         return [t for t in self.tiles if t is not None]
 
@@ -192,6 +198,12 @@ class Corner(BuildableLocation):
     def getTiles(self):
         return cornersToTiles[self][:] # return a copy
     tiles = property(getTiles)
+
+    def getSettlement(self):
+        if not self.stuff:
+            return None
+        return self.stuff[0]
+    settlement = property(getSettlement)
 
     def getEdges(self):
         return [e for e in self.edges if e is not None]

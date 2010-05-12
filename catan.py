@@ -369,7 +369,7 @@ class City(Settlement):
 
 class Road(FiniteGameObject):
     cost = [Wood, Brick]
-    maxPerPlayer = 11 #TODO check this
+    maxPerPlayer = 13 #TODO check this
     def __init__(self):
         self.owner = None
         self.location = None
@@ -484,6 +484,13 @@ class Game(object):
 
     def calculateLongestRoad(self, newRoad):
         print "NOT IMPLEMENTED calculateLongestRoad"
+        # TODO
+        # a player's road network can be thought of as a 
+        # (possibly disconnected) graph that can have cycles, so the 
+        # problem boils down to finding the 
+        for player in self.players:
+            roads = player.roads
+        # TODO
 
     def onStageChange(self, newStage):
         if game.state.stage == Stages.setup:
@@ -495,15 +502,16 @@ class Game(object):
                 if tile.pip.value == sum(self.dice.lastRoll):
                     cardClass = tile.terrain.getCardClass()
                     for corner in tile.corners:
-                        for settlement in corner.stuff:
-                            owner = settlement.owner
-                            if isinstance(settlement, City):
-                                # Cities get 2 cards
-                                cards = [cardClass(), cardClass()]
-                            else:
-                                # Regular settlements get 1 card
-                                cards = [cardClass()]
-                            events.post('Harvest', cards, tile, owner)
+                        if not corner.settlement:
+                            continue
+                        owner = corner.settlement.owner
+                        if isinstance(corner.settlement, City):
+                            # Cities get 2 cards
+                            cards = [cardClass(), cardClass()]
+                        else:
+                            # Regular settlements get 1 card
+                            cards = [cardClass()]
+                        events.post('Harvest', cards, tile, owner)
             events.post('CardHarvestOver')
 
     def onItemPlaced(self, item):
@@ -543,7 +551,7 @@ class Player(object):
         points = 0
         for item in self.items:
             if not item.location:
-                # hasn't been set down yet
+                # item was bought, but hasn't been set down yet
                 continue
             if isinstance(item, Settlement):
                 if isinstance(item, City):
@@ -642,17 +650,16 @@ class Player(object):
     def findPossibleVictims(self):
         victims = set()
         for c in game.board.robber.tile.corners:
-            if not c.stuff:
+            if not c.settlement:
                 continue
-            settlement = c.stuff[0]
-            if settlement.owner != self:
-                victims.add(settlement.owner)
+            if c.settlement.owner != self:
+                victims.add(c.settlement.owner)
         return list(victims)
 
     def findFreeCornersForSettlement(self):
         freeCorners = []
         for c in mapmodel.allCorners:
-            if c.stuff:
+            if c.settlement:
                 continue
             freeCorners.append(c)
         print 'free', freeCorners
@@ -678,11 +685,10 @@ class Player(object):
         for corner in corners:
             for e in corner.edges:
                 print 'e', e, e.stuff
-                if not e.stuff:
+                if not e.road:
                     continue
-                road = e.stuff[0]
                 print 'road', e, e.stuff
-                if road.owner == self:
+                if e.road.owner == self:
                     connectedCorners.append(corner)
         return connectedCorners
 
@@ -691,25 +697,25 @@ class Player(object):
         return [corner for corner in corners
                 if not
                        [peer for peer in corner.getPeers()
-                        if peer.stuff]
+                        if peer.settlement]
                ]
         
     def findFreeEdgesOfSettlement(self, settlement):
         corner = settlement.location
         edges = corner.getEdges()
-        return [e for e in edges if not e.stuff]
+        return [e for e in edges if not e.road]
 
     def findFreeEdgesForRoad(self):
         freeEdges = []
         for e in mapmodel.allEdges:
             # if an edge has a road it is definitely not free
-            if e.stuff:
+            if e.road:
                 continue
 
             for corner in e.corners:
                 # i can build on an edge next to my house
-                if corner.stuff:
-                    settlement = corner.stuff[0]
+                if corner.settlement:
+                    settlement = corner.settlement
                     if settlement.owner == self:
                         freeEdges.append(e)
                         break
@@ -719,9 +725,8 @@ class Player(object):
                     otherEdges = [edge for edge in corner.edges
                                   if edge != e and edge != None]
                     for otherEdge in otherEdges:
-                        if otherEdge.stuff:
-                            road = otherEdge.stuff[0]
-                            if road.owner == self:
+                        if otherEdge.road:
+                            if otherEdge.road.owner == self:
                                 freeEdges.append(e)
                                 break
         return freeEdges

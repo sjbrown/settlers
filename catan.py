@@ -620,6 +620,12 @@ class Player(object):
     def mustDiscard(self):
         return len(self.cards) > 7
 
+    def getVictoryCardOfClass(self, victoryCardClass):
+        for c in self.victoryCards:
+            if isinstance(c, victoryCardClass):
+                return c
+        return None
+
     @allowedDuring(Stages.playerTurn)
     def onBuyRequest(self, player, itemClass):
         if player != self or self != game.state.activePlayer:

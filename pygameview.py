@@ -67,6 +67,17 @@ def draw_cards(cards, destImg, x, y, deltaX, deltaY, number=False):
         destImg.blit(txtImg, vect_add(cardPos, (1,3)))
 
 # -----------------------------------------------------------------------------
+def drawVictoryCard(card):
+    cardImg = pygame.Surface( (10,16) )
+    cardImg.fill( white )
+    pygame.draw.rect(cardImg, black,
+                     cardImg.get_rect().inflate((-2,-2)), 1)
+    txtImg = font_render(card.__class__.__name__[:2], size=9)
+    blit_at_center(cardImg, txtImg)
+    return cardImg
+
+
+# -----------------------------------------------------------------------------
 def sort_cards(cards):
     def clsCmp(x,y):
         return cmp(x.__class__, y.__class__)
@@ -356,7 +367,7 @@ class Console(EasySprite):
 
     #----------------------------------------------------------------------
     def update(self):
-        self.image.fill( (0,0,0) )
+        self.image.fill(black)
         self.drawBg()
         self.drawText()
 
@@ -442,7 +453,7 @@ class DiceButton(EasySprite, Highlightable):
             self.hintlighted = True
         else:
             self.hintlighted = False
-        self.image.fill( (0,0,0) )
+        self.image.fill(black)
         self.drawBg()
         self.drawText()
         self.dirty = False
@@ -460,6 +471,75 @@ class DiceButton(EasySprite, Highlightable):
     def onMouseLeftDown(self, pos):
         if self.rect.collidepoint(pos):
             events.post('DiceRollRequest', humanPlayer)
+
+#------------------------------------------------------------------------------
+class UseCardButton(EasySprite, Highlightable):
+    def __init__(self, victoryCardClass):
+        EasySprite.__init__(self)
+        Highlightable.__init__(self)
+        events.registerListener(self)
+        self.image = EasySurface( (50,50) )
+        self.rect = self.image.get_rect()
+        hudGroup.add(self)
+
+        self.victoryCardClass = victoryCardClass
+
+        self.draw()
+
+    #----------------------------------------------------------------------
+    def update(self):
+        if not self.dirty:
+            return
+        self.calculateHintlight()
+        self.draw()
+
+    #----------------------------------------------------------------------
+    def draw(self):
+        self.image.fill(black)
+        r = self.rect.move(-self.x, -self.y)
+        pygame.draw.rect(self.image, blue, r, 2)
+
+        if self.hoverlighted:
+            color = white
+        elif self.hintlighted:
+            color = (255,100,100)
+        else:
+            color = red
+        txt = self.victoryCardClass.__name__[0]
+        txtImg = font_render(txt, color=color, size=30)
+        blit_at_center(self.image, txtImg)
+
+        if humanPlayer:
+            card = humanPlayer.getVictoryCardOfClass(self.victoryCardClass)
+            if card:
+                cardImg = drawVictoryCard(card)
+                self.image.blit(cardImg, (5,10))
+
+        self.dirty = False
+
+    #----------------------------------------------------------------------
+    def onMouseMotion(self, pos, buttons):
+        self.checkHover(pos)
+
+    #----------------------------------------------------------------------
+    def onMouseLeftDown(self, pos):
+        if self.rect.collidepoint(pos):
+            events.post('PlayVictoryCardRequest', humanPlayer,
+                        self.victoryCardClass)
+
+    #----------------------------------------------------------------------
+    def calculateHintlight(self):
+        if (catan.game.state.stage in (catan.Stages.preRollSoldier,
+                                      catan.Stages.playerTurn)
+            and humanPlayer.getVictoryCardOfClass(self.victoryCardClass)):
+            self.hintlighted = True
+        else:
+            self.hintlighted = False
+
+#------------------------------------------------------------------------------
+class SoldierButton(UseCardButton):
+    def __init__(self):
+        UseCardButton.__init__(self, catan.Soldier)
 
 #------------------------------------------------------------------------------
 class BuyButton(EasySprite, Highlightable):
@@ -925,7 +1005,7 @@ class PygameView:
         pygame.display.set_caption( 'TITLE HERE' )
 
         self.background = pygame.Surface( self.window.get_size() )
-        self.background.fill( (0,0,0) )
+        self.background.fill(black)
 
         self.window.blit( self.background, (0,0) )
         pygame.display.flip()
@@ -943,6 +1023,9 @@ class PygameView:
 
     #----------------------------------------------------------------------
     def showHud(self):
+        sbutton = SoldierButton()
+        sbutton.topleft = 600, 100
+
         vbutton = BuyVictoryCardButton()
         vbutton.topleft = 600, 160
 
@@ -970,7 +1053,7 @@ class PygameView:
     #----------------------------------------------------------------------
     def showMap(self, board):
         # clear the screen first
-        self.background.fill( (0,0,0) )
+        self.background.fill(black)
         self.window.blit( self.background, (0,0) )
         pygame.display.flip()
 
@@ -996,6 +1079,8 @@ class PygameView:
         if not self.showRobberCursor:
             return []
         pos = pygame.mouse.get_pos()
+        textImg = font_render('X', color=white, size=36)
+        self.window.blit( textImg, vect_diff(pos, (-2-2)) )
         textImg = font_render('X', color=black, size=36)
         self.window.blit( textImg, pos )
         return [textImg.get_rect().move(pos)]
@@ -1805,12 +1890,7 @@ class PlayerDisplay(EasySprite):
     #----------------------------------------------------------------------
     def drawVictoryCards(self):
         for i, card in enumerate(self.player.victoryCards):
-            cardImg = pygame.Surface( (10,16) )
-            cardImg.fill( white )
-            pygame.draw.rect(cardImg, black,
-                             cardImg.get_rect().inflate((-2,-2)), 1)
-            txtImg = font_render(card.__class__.__name__[:2], size=9)
-            blit_at_center(cardImg, txtImg)
+            cardImg = drawVictoryCard(card)
             cardPos = vect_add((32,6), (3*i,3*i))
             self.image.blit(cardImg, cardPos)
 

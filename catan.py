@@ -84,7 +84,7 @@ def allowedDuring(*allowedStages):
             #print 'called ', fn
             #print 'supposed to be in', allowedStages
             if game.state.stage not in allowedStages:
-                print 'EVENT NOT ALLOWED'
+                print 'EVENT NOT ALLOWED', fn.__name__, game.state.stage
                 events.post('EventNotAllowedAtThisStage', fn.__name__,
                                                  game.state.stage,
                                                  allowedStages)
@@ -181,8 +181,8 @@ class GameState(object):
             else:
                 print 'FAIL'
         else:
-            assert self.stage == Stages.playerTurn
-            print 'NotImp'
+            if item.owner.points >= 10:
+                self.stage = Stages.gameOver
 
     @allowedDuring(Stages.preRoll)
     def onDiceRoll(self, d1, d2):
@@ -244,11 +244,6 @@ class GameState(object):
     @allowedDuring(Stages.cardHarvest)
     def onCardHarvestOver(self):
         self.stage = Stages.playerTurn
-
-    @allowedDuring(Stages.playerTurn)
-    def onItemPlaced(self, item):
-        if item.owner.points >= 10:
-            self.stage = Stages.gameOver
 
     def onPlayerDrewVictoryCard(self, player, card):
         if player.points >= 10:
@@ -496,6 +491,7 @@ class Game(object):
     def __init__(self):
         self._largestArmyPlayer = None
         self._longestRoadPlayer = None
+        self._longestRoadLength = 0
         self.state = GameState(self)
         self.players = []
         self.dice = Dice()
@@ -517,14 +513,13 @@ class Game(object):
         pass
 
     def calculateLongestRoad(self, newRoad=None):
-        print "NOT IMPLEMENTED calculateLongestRoad"
-        # TODO
-        # a player's road network can be thought of as a 
-        # (possibly disconnected) graph that can have cycles, so the 
-        # problem boils down to finding the 
         for player in self.players:
-            roads = player.roads
-        # TODO
+            roadLen = player.longestRoadLength()
+            print 'player', player, 'road len', roadLen
+            if roadLen > self._longestRoadLength and roadLen >= 5:
+                self._longestRoadLength = roadLen
+                self._longestRoadPlayer = player
+            
 
     def onStageChange(self, newStage):
         if game.state.stage == Stages.setup:
@@ -627,6 +622,47 @@ class Player(object):
     def getHasLongestRoad(self):
         return game.longestRoadPlayer == self
     hasLongestRoad = property(getHasLongestRoad)
+
+    def longestRoadLength(self):
+        # a player's road network can be thought of as a 
+        # (possibly disconnected) graph that can have cycles
+
+        def visitRoad(road):
+            edge = road.location
+            if not edge:
+                # player hasn't placed this road on the board yet
+                return 0
+            lCorner = edge.corners[0]
+            rCorner = edge.corners[1]
+            visitedEdges = [edge]
+            lLen = 1 + max([walkLen(lCorner, e, visitedEdges)
+                            for e in lCorner.edges])
+            visitedEdges = [edge]
+            rLen = 1 + max([walkLen(rCorner, e, visitedEdges)
+                            for e in rCorner.edges])
+            return max([lLen, rLen])
+
+        def walkLen(fromCorner, edge, visitedEdges):
+            if edge == None:
+                # corners have 3 edges, but water-adjacent corners can have
+                # one of the corners == None
+                return 0
+            if not edge.road:
+                return 0
+            if edge.road.owner != self:
+                return 0
+            if edge in visitedEdges:
+                return 0
+            toCorner = edge.otherCorner(fromCorner)
+            visitedEdges = visitedEdges[:]
+            visitedEdges.append(edge)
+
+            return 1 + max([walkLen(toCorner, e, visitedEdges)
+                            for e in toCorner.edges])
+
+        if not self.roads:
+            return 0
+        return max([visitRoad(r) for r in self.roads])
 
     def add(self, item):
         if isinstance(item, VictoryCard):

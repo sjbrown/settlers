@@ -21,6 +21,7 @@ def run_saved_game():
 def main():
     import pygameview
 
+    mode = None
     if len(sys.argv) > 1 and sys.argv[1] == 'load':
         mode = 'load'
     else:

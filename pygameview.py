@@ -116,11 +116,17 @@ class Highlightable(object):
         self.dirty = True
     hoverlighted = property(getHoverlight, setHoverlight)
 
+    #----------------------------------------------------------------------
     def checkHover(self, pos):
         if self.rect.collidepoint(pos):
             self.hoverlighted = True
         elif self.hoverlighted:
             self.hoverlighted = False
+
+    #----------------------------------------------------------------------
+    def onRefreshState(self):
+        self.dirty = True
+
 
 # -----------------------------------------------------------------------------
 class EasySurface(pygame.Surface):
@@ -164,17 +170,19 @@ def blit_at_center(img1, img2, rect1=None, rect2=None):
     pos = vect_diff(rect1.center, rect2.center)
     img1.blit(img2, pos)
 
-
-
+# -----------------------------------------------------------------------------
 def vect_add(v1, v2):
     return v1[0]+v2[0], v1[1]+v2[1]
     
+# -----------------------------------------------------------------------------
 def vect_diff(v1, v2):
     return v1[0]-v2[0], v1[1]-v2[1]
 
+# -----------------------------------------------------------------------------
 def vect_mult(v1, v2):
     return v1[0]*v2[0], v1[1]*v2[1]
 
+# -----------------------------------------------------------------------------
 def vect_scal_mult(v1, s):
     return v1[0]*s, v1[1]*s
 
@@ -449,7 +457,7 @@ class DiceButton(EasySprite, Highlightable):
 
     #----------------------------------------------------------------------
     def update(self):
-        if catan.game.state.stage == catan.Stages.preRollSoldier:
+        if catan.game.state.stage == catan.Stages.preRoll:
             self.hintlighted = True
         else:
             self.hintlighted = False
@@ -529,7 +537,7 @@ class UseCardButton(EasySprite, Highlightable):
 
     #----------------------------------------------------------------------
     def calculateHintlight(self):
-        if (catan.game.state.stage in (catan.Stages.preRollSoldier,
+        if (catan.game.state.stage in (catan.Stages.preRoll,
                                       catan.Stages.playerTurn)
             and humanPlayer.getVictoryCardOfClass(self.victoryCardClass)):
             self.hintlighted = True
@@ -1080,7 +1088,7 @@ class PygameView:
             return []
         pos = pygame.mouse.get_pos()
         textImg = font_render('X', color=white, size=36)
-        self.window.blit( textImg, vect_diff(pos, (-2-2)) )
+        self.window.blit( textImg, vect_diff(pos, (-2,-2)) )
         textImg = font_render('X', color=black, size=36)
         self.window.blit( textImg, pos )
         return [textImg.get_rect().move(pos)]
@@ -1894,6 +1902,12 @@ class PlayerDisplay(EasySprite):
             cardPos = vect_add((32,6), (3*i,3*i))
             self.image.blit(cardImg, cardPos)
 
+        for i, card in enumerate(self.player.playedVictoryCards):
+            cardImg = drawVictoryCard(card)
+            cardPos = vect_add((5,50), (3*i,0))
+            self.image.blit(cardImg, cardPos)
+
+
     #----------------------------------------------------------------------
     def update(self):
         if not self.dirty:
@@ -1905,7 +1919,7 @@ class PlayerDisplay(EasySprite):
 
     #----------------------------------------------------------------------
     def onStageChange(self, newStage):
-        if newStage in [catan.Stages.preRollSoldier,
+        if newStage in [catan.Stages.preRoll,
                         catan.Stages.playerTurn]:
             self.dirty = True
 
@@ -1921,7 +1935,8 @@ class PlayerDisplay(EasySprite):
 
         #if newStage == catan.Stages.rolledRobberPlacement:
         #    events.post('ShowRobberCursor', self.player)
-        elif newStage == catan.Stages.chooseVictim:
+        elif newStage in [catan.Stages.preRollChooseVictim,
+                          catan.Stages.postRollChooseVictim]:
             possibleVictims = self.player.findPossibleVictims()
             if possibleVictims:
                 if len(possibleVictims) == 1:

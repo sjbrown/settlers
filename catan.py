@@ -32,12 +32,12 @@ class Stages:
     waitingForPlayers,
     setup,
     initialPlacement,
-    preRollSoldier,
-    roll,
+    preRoll,
     sevenRolledDiscard,
-    rolledRobberPlacement,
-    soldierCard,
-    chooseVictim,
+    preRollRobberPlacement,
+    postRollRobberPlacement,
+    preRollChooseVictim,
+    postRollChooseVictim,
     cardHarvest,
     playerTurn,
     gameOver,
@@ -45,12 +45,12 @@ class Stages:
     waitingForPlayers,
     setup,
     initialPlacement,
-    preRollSoldier,
-    roll,
+    preRoll,
     sevenRolledDiscard,
-    rolledRobberPlacement,
-    soldierCard,
-    chooseVictim,
+    preRollRobberPlacement,
+    postRollRobberPlacement,
+    preRollChooseVictim,
+    postRollChooseVictim,
     cardHarvest,
     playerTurn,
     gameOver,
@@ -152,7 +152,7 @@ class GameState(object):
             position = self.activePlayer.activeItem.findBestPosition()
             self.activePlayer.activeItem.place(position)
 
-        if self.stage == Stages.preRollSoldier:
+        if self.stage == Stages.preRoll:
             # TODO ...force a roll
             pass
 
@@ -169,7 +169,7 @@ class GameState(object):
             if ( isinstance(item, Road)
              and self.activePlayer == self.game.players[0]
              and self.initialPlacementDirection == -1 ):
-                self.stage = Stages.preRollSoldier
+                self.stage = Stages.preRoll
                 self._activeCountdown = Countdown(60)
             elif isinstance(item, Road):
                 self.nextPlayer()
@@ -184,7 +184,7 @@ class GameState(object):
             assert self.stage == Stages.playerTurn
             print 'NotImp'
 
-    @allowedDuring(Stages.preRollSoldier)
+    @allowedDuring(Stages.preRoll)
     def onDiceRoll(self, d1, d2):
         rollValue = d1+d2
         if rollValue == 7:
@@ -196,7 +196,7 @@ class GameState(object):
             if found:
                 self.stage = Stages.sevenRolledDiscard
             else:
-                self.stage = Stages.rolledRobberPlacement
+                self.stage = Stages.postRollRobberPlacement
                 self.activePlayer.placeRobber()
         else:
             self.stage = Stages.cardHarvest
@@ -206,16 +206,20 @@ class GameState(object):
         self.awaitingDiscard.remove(player)
         if self.awaitingDiscard:
             return # someone still needs to discard
-        self.stage = Stages.rolledRobberPlacement
+        self.stage = Stages.postRollRobberPlacement
         self.activePlayer.placeRobber()
 
-    @allowedDuring(Stages.setup, Stages.rolledRobberPlacement, Stages.soldierCard)
+    @allowedDuring(Stages.setup, Stages.preRollRobberPlacement,
+                   Stages.postRollRobberPlacement)
     def onRobberPlaced(self, robber):
         if self.stage == Stages.setup:
             return
-        self.stage = Stages.chooseVictim
+        if self.stage == Stages.postRollRobberPlacement:
+            self.stage = Stages.postRollChooseVictim
+        elif self.stage == Stages.preRollRobberPlacement:
+            self.stage = Stages.preRollChooseVictim
 
-    @allowedDuring(Stages.chooseVictim)
+    @allowedDuring(Stages.preRollChooseVictim, Stages.postRollChooseVictim)
     def onRobRequest(self, thief, victim):
         if thief == self.activePlayer:
             if victim.cards:
@@ -223,11 +227,18 @@ class GameState(object):
                 victim.cards.remove(card)
                 thief.cards.append(card)
                 events.post('Rob', thief, victim, card)
-            self.stage = Stages.playerTurn
+            if self.stage == Stages.postRollChooseVictim:
+                self.stage = Stages.playerTurn
+            elif self.stage == Stages.preRollChooseVictim:
+                self.stage = Stages.preRoll
 
-    @allowedDuring(Stages.chooseVictim)
+    @allowedDuring(Stages.preRollChooseVictim, Stages.postRollChooseVictim)
     def onSkipRobRequest(self, thief):
-        if thief == self.activePlayer:
+        if thief != self.activePlayer:
+            return
+        if self.stage == Stages.preRollChooseVictim:
+            self.stage = Stages.preRoll
+        elif self.stage == Stages.postRollChooseVictim:
             self.stage = Stages.playerTurn
 
     @allowedDuring(Stages.cardHarvest)
@@ -247,7 +258,7 @@ class GameState(object):
     def onTurnFinishRequest(self, player):
         if player == self.activePlayer:
             self.nextPlayer()
-            self.stage = Stages.preRollSoldier
+            self.stage = Stages.preRoll
 
 debugRolls = [(1,2), (2,5), (2,1), (2,1), (6,6)]
 class Dice(object):
@@ -264,7 +275,7 @@ class Dice(object):
             b = random.randrange(1,7)
         self.lastRoll = (a,b)
         if (player != game.state.activePlayer
-            or game.state.stage not in [Stages.preRollSoldier]
+            or game.state.stage not in [Stages.preRoll]
             ):
             print 'illegal dice roll request', player
         else:
@@ -277,7 +288,7 @@ class Robber(object):
         events.registerListener(self)
         self._tile = None
 
-    @allowedDuring(Stages.rolledRobberPlacement, Stages.soldierCard)
+    @allowedDuring(Stages.postRollRobberPlacement, Stages.preRollRobberPlacement)
     def onRobberPlaceRequest(self, player, tile):
         if player != game.state.activePlayer:
             print 'illegal robber place request', player
@@ -403,7 +414,15 @@ class PointCard(VictoryCard): pass
 class Cathedral(PointCard): pass
 class University(PointCard): pass
 
-class Soldier(VictoryCard): pass
+class Soldier(VictoryCard):
+    def action(self, player):
+        # this stage is only for effects.  Maybe just send an event out.
+        if game.state.stage == Stages.preRoll:
+            game.state.stage = Stages.preRollRobberPlacement
+        else:
+            game.state.stage = Stages.postRollRobberPlacement
+        player.placeRobber()
+
 class YearOfPlenty(VictoryCard): pass
 class Monopoly(VictoryCard): pass
 
@@ -475,6 +494,8 @@ class Board(object):
 
 class Game(object):
     def __init__(self):
+        self._largestArmyPlayer = None
+        self._longestRoadPlayer = None
         self.state = GameState(self)
         self.players = []
         self.dice = Dice()
@@ -482,7 +503,20 @@ class Game(object):
 
         events.registerListener(self)
 
-    def calculateLongestRoad(self, newRoad):
+    def getLargestArmyPlayer(self):
+        self.calculateLargestArmy()
+        return self._largestArmyPlayer
+    largestArmyPlayer = property(getLargestArmyPlayer)
+
+    def getLongestRoadPlayer(self):
+        self.calculateLongestRoad()
+        return self._longestRoadPlayer
+    longestRoadPlayer = property(getLongestRoadPlayer)
+
+    def calculateLargestArmy(self):
+        pass
+
+    def calculateLongestRoad(self, newRoad=None):
         print "NOT IMPLEMENTED calculateLongestRoad"
         # TODO
         # a player's road network can be thought of as a 
@@ -529,13 +563,13 @@ class Player(object):
         self.items = []
         self.cards = []
         self.victoryCards = []
+        self.playedVictoryCards = []
+        self.victoryCardPlayedThisTurn = False
         self.offer = []
         self.wants = []
         self.latestItem = None
         self.activeItem = None
         events.registerListener(self)
-        self.hasLongestRoad = False
-        self.hasLargestArmy = False
 
     def __str__(self):
         return '<Player %s>' % str(self.identifier)
@@ -567,6 +601,8 @@ class Player(object):
             points += 2
         return points
     points = property(getPoints)
+    allPoints = None
+    visiblePoints = None
 
     def getRoads(self):
         return [item for item in self.items
@@ -583,6 +619,14 @@ class Player(object):
         return [item for item in self.items
                 if isinstance(item, City)]
     cities = property(getCities)
+
+    def getHasLargestArmy(self):
+        return game.largestArmyPlayer == self
+    hasLargestArmy = property(getHasLargestArmy)
+
+    def getHasLongestRoad(self):
+        return game.longestRoadPlayer == self
+    hasLongestRoad = property(getHasLongestRoad)
 
     def add(self, item):
         if isinstance(item, VictoryCard):
@@ -648,6 +692,37 @@ class Player(object):
             return
         self.buy(itemClass)
         self.add(item)
+
+    @allowedDuring(Stages.playerTurn, Stages.preRoll)
+    def onPlayVictoryCardRequest(self, player, victoryCardClass):
+        if player != self or self != game.state.activePlayer:
+            return
+
+        foundCard = None
+        for vcard in self.victoryCards:
+            if isinstance(vcard, victoryCardClass):
+                foundCard = vcard
+                break
+        if not foundCard:
+            events.post('Error', 'Player does not have requested card.')
+            return
+        if not hasattr(foundCard, 'action'):
+            events.post('Error', 'Card has no associated action.')
+            return
+        if self.victoryCardPlayedThisTurn:
+            events.post('Error', 'Only one victory card per turn.')
+            return
+        if (game.state.stage == Stages.preRoll
+            and not victoryCardClass == Soldier):
+            events.post('Error', 'Only soldier cards during pre-roll.')
+            return
+
+        self.victoryCardPlayedThisTurn = True
+            
+        self.victoryCards.remove(foundCard)
+        self.playedVictoryCards.append(foundCard)
+
+        foundCard.action(self)
 
     def placeRobber(self):
         self.activeItem = game.board.robber
@@ -784,6 +859,9 @@ class Player(object):
 
 
 class HumanPlayer(Player):
+    def onPlayerSet(self, newPlayer):
+        if newPlayer == self:
+            self.victoryCardPlayedThisTurn = False
 
     def onClickCorner(self, corner):
         if game.state.activePlayer != self:
@@ -930,11 +1008,12 @@ class CPUPlayer(Player):
         if game.state.activePlayer != self:
             return
 
-        if game.state.stage == Stages.preRollSoldier:
+        if game.state.stage == Stages.preRoll:
             self.rollDice()
         if game.state.stage == Stages.playerTurn:
             events.post('TurnFinishRequest', self)
-        if game.state.stage == Stages.chooseVictim:
+        if game.state.stage in [Stages.preRollChooseVictim,
+                                Stages.postRollChooseVictim]:
             self.chooseVictim()
 
     def onProposeTrade(self, player, toGive, toTake):

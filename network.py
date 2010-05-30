@@ -214,6 +214,8 @@ class CopyableGame(Serializable):
 
     def postUnserialize(self):
         self.dice = Dice()
+        self._longestRoadPlayer = None
+        self._largestArmyPlayer = None
         events.registerListener(self)
 
     def unserialize_players(self, stateDict, registry):
@@ -475,7 +477,8 @@ MixInClass( Edge, CopyableEdge )
 #------------------------------------------------------------------------------
 class CopyablePlayer(Serializable):
     copyworthy_attrs = ['identifier', 'color', 'latestItem', 'items', 'cards',
-                        'victoryCards']
+                        'victoryCards', 'playedVictoryCards',
+                        'victoryCardPlayedThisTurn']
 
     def unserialize_items(self, stateDict, registry):
         neededObjIDs = []
@@ -519,11 +522,25 @@ class CopyablePlayer(Serializable):
 
         return neededObjIDs
 
+    def unserialize_playedVictoryCards(self, stateDict, registry):
+        neededObjIDs = []
+        self.playedVictoryCards = []
+        cardIDs = stateDict['playedVictoryCards']
+        for value in cardIDs:
+            if value in registry:
+                self.playedVictoryCards.append(registry[value])
+            else:
+                placeholder = Placeholder(value, registry)
+                self.playedVictoryCards.append(registry[value])
+                neededObjIDs.append(value)
+
+        return neededObjIDs
+
     def postUnserialize(self):
         self.activeItem = None
         # TODO: these should be unserialized or something
-        self.hasLongestRoad = False
-        self.hasLargestArmy = False
+        #self.hasLongestRoad = False
+        #self.hasLargestArmy = False
         events.registerListener(self)
 
 

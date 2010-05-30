@@ -215,6 +215,7 @@ class CopyableGame(Serializable):
     def postUnserialize(self):
         self.dice = Dice()
         self._longestRoadPlayer = None
+        self._longestRoadLength = 0
         self._largestArmyPlayer = None
         events.registerListener(self)
 

@@ -342,10 +342,8 @@ def display(tile, indent='', finished=None):
             if t == None:
                 continue
             if t not in finished:
-                #print 'gonna print *', t
                 print '\n'
                 display(t, indent+'   ', finished)
-    #print ''
 
 def pygameDisplay():
     '''make a call to this method from the middle of the build algorithm

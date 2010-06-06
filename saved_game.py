@@ -65,6 +65,8 @@ def save(fname='./'+SAVE_NAME+'.py'):
             dicts[id(card)] = saveObj(card)
         for card in p.victoryCards:
             dicts[id(card)] = saveObj(card)
+        for card in p.playedVictoryCards:
+            dicts[id(card)] = saveObj(card)
 
     for t in mapmodel.allTiles:
         dicts[id(t.terrain)] = saveObj(t.terrain)

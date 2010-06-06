@@ -217,6 +217,7 @@ class CopyableGame(Serializable):
         self._longestRoadPlayer = None
         self._longestRoadLength = 0
         self._largestArmyPlayer = None
+        self._largestArmySize = 0
         events.registerListener(self)
 
     def unserialize_players(self, stateDict, registry):
@@ -539,9 +540,6 @@ class CopyablePlayer(Serializable):
 
     def postUnserialize(self):
         self.activeItem = None
-        # TODO: these should be unserialized or something
-        #self.hasLongestRoad = False
-        #self.hasLargestArmy = False
         events.registerListener(self)
 
 
@@ -579,6 +577,7 @@ def test_Player():
      'latestItem': id(p1.latestItem),
      'cards': [],
      'victoryCards': [],
+     'playedVictoryCards': [],
      'items': [id(p1.items[0]), id(p1.items[1])],
     }
     reg1 = {id(p1.items[0]): p1.items[0],
@@ -599,6 +598,7 @@ def test_Player():
       'latestItem': None,
       'cards': [],
       'victoryCards': [],
+      'playedVictoryCards': [],
       'items': [id(p4.items[0])],
       }
     reg1.update( {id(p4.items[0]): p4.items[0],} )

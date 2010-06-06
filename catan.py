@@ -411,18 +411,22 @@ class University(PointCard): pass
 
 class Soldier(VictoryCard):
     def action(self, player):
-        # this stage is only for effects.  Maybe just send an event out.
         if game.state.stage == Stages.preRoll:
             game.state.stage = Stages.preRollRobberPlacement
         else:
             game.state.stage = Stages.postRollRobberPlacement
         player.placeRobber()
 
-class YearOfPlenty(VictoryCard): pass
+class YearOfPlenty(VictoryCard):
+    def action(self, player):
+        if game.state.stage != Stages.playerTurn:
+            raise Exception('should only play during player turn')
+        events.post('ShowPlayerChooseTwoCards', player)
+
 class Monopoly(VictoryCard): pass
 
 # TODO: use the official distribution
-allVictoryCardClasses = [Cathedral, University, Soldier, YearOfPlenty, Monopoly]
+allVictoryCardClasses = [Soldier, Soldier, Soldier, Cathedral, University, Soldier, YearOfPlenty, Monopoly]
 
 terrainClasses = [Wheat]*4 + [Mud]*3 + [Mountain]*3 + [Grass]*4 + [Forest]*4 + [Desert]
 
@@ -492,6 +496,7 @@ class Game(object):
         self._largestArmyPlayer = None
         self._longestRoadPlayer = None
         self._longestRoadLength = 0
+        self._largestArmySize = 0
         self.state = GameState(self)
         self.players = []
         self.dice = Dice()
@@ -510,12 +515,17 @@ class Game(object):
     longestRoadPlayer = property(getLongestRoadPlayer)
 
     def calculateLargestArmy(self):
-        pass
+        for player in self.players:
+            armySize = player.armySize()
+            #print 'player', player, 'len', armySize
+            if armySize > self._largestArmySize and armySize >= 3:
+                self._largestArmySize = armySize
+                self._largestArmyPlayer = player
 
     def calculateLongestRoad(self, newRoad=None):
         for player in self.players:
             roadLen = player.longestRoadLength()
-            print 'player', player, 'road len', roadLen
+            #print 'player', player, 'road len', roadLen
             if roadLen > self._longestRoadLength and roadLen >= 5:
                 self._longestRoadLength = roadLen
                 self._longestRoadPlayer = player
@@ -622,6 +632,10 @@ class Player(object):
     def getHasLongestRoad(self):
         return game.longestRoadPlayer == self
     hasLongestRoad = property(getHasLongestRoad)
+
+    def armySize(self):
+        return len( [c for c in self.playedVictoryCards
+                     if isinstance(c, Soldier)] )
 
     def longestRoadLength(self):
         # a player's road network can be thought of as a 

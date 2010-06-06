@@ -536,6 +536,10 @@ class UseCardButton(EasySprite, Highlightable):
                         self.victoryCardClass)
 
     #----------------------------------------------------------------------
+    def onStageChange(self, *args):
+        self.dirty = True
+
+    #----------------------------------------------------------------------
     def calculateHintlight(self):
         if (catan.game.state.stage in (catan.Stages.preRoll,
                                       catan.Stages.playerTurn)
@@ -548,6 +552,11 @@ class UseCardButton(EasySprite, Highlightable):
 class SoldierButton(UseCardButton):
     def __init__(self):
         UseCardButton.__init__(self, catan.Soldier)
+
+#------------------------------------------------------------------------------
+class YearOfPlentyButton(UseCardButton):
+    def __init__(self):
+        UseCardButton.__init__(self, catan.YearOfPlenty)
 
 #------------------------------------------------------------------------------
 class BuyButton(EasySprite, Highlightable):
@@ -1034,6 +1043,9 @@ class PygameView:
         sbutton = SoldierButton()
         sbutton.topleft = 600, 100
 
+        sbutton = YearOfPlentyButton()
+        sbutton.topleft = 660, 100
+
         vbutton = BuyVictoryCardButton()
         vbutton.topleft = 600, 160
 
@@ -1148,6 +1160,14 @@ class PygameView:
     def onShowTrade(self):
         tdisplay = TradeDisplay()
         tdisplay.center = self.window.get_rect().center
+
+    #----------------------------------------------------------------------
+    def onShowPlayerChooseTwoCards(self, player):
+        if player != humanPlayer:
+            return
+        cdisplay = ChooseTwoCardsDisplay(player)
+        cdisplay.center = self.window.get_rect().center
+
 
     #----------------------------------------------------------------------
     def onBoardCreated(self, board):
@@ -1331,6 +1351,12 @@ class DiscardDisplay(EasySprite):
             draw_cards(group, self.image, x, y, 2, 3)
             x += 30
 
+        if self._discards:
+            #self.dButton = ChooseTextButton((200,60))
+            x = 210
+            y = 40
+            draw_cards(self._discards, self.image, x, y, 6, 0)
+
     #----------------------------------------------------------------------
     def drawButtons(self):
         self.dButton.update()
@@ -1378,6 +1404,146 @@ class DiscardDisplay(EasySprite):
         if self.dButton.rect.collidepoint(innerPos):
             if self.dButton.hintlighted:
                 events.post('DiscardRequest', self.player, self._discards)
+
+#------------------------------------------------------------------------------
+class ChooseAddButton(CardAddButton):
+    #def __init__(self, parent, pos, cardClass, symbol='+'):
+    def click(self):
+        self.parent.addChoose(self.cardClass)
+
+#------------------------------------------------------------------------------
+class ChooseRemoveButton(CardRemoveButton):
+    def click(self):
+        self.parent.removeChoose(self.cardClass)
+
+#------------------------------------------------------------------------------
+class ChooseTextButton(TextButton):
+    def __init__(self, pos):
+        EasySprite.__init__(self)
+        Highlightable.__init__(self)
+        events.registerListener(self)
+        self.text = 'CHOOSE'
+        self.rect = Rect(pos[0], pos[1], 70,15)
+        self.image = EasySurface(self.rect.size)
+        self.draw()
+
+#------------------------------------------------------------------------------
+class ChooseTwoCardsDisplay(EasySprite):
+    def __init__(self, player):
+        EasySprite.__init__(self)
+        events.registerListener(self)
+        self.image = EasySurface( (280,80) )
+        self.rect = self.image.get_rect()
+
+        self.player = player
+
+        self._chosen = []
+
+        self.addButtons = {}
+        self.removeButtons = {}
+
+        self.drawBg()
+        self.drawCards()
+
+        self.dButton = ChooseTextButton((200,60))
+        self.drawButtons()
+
+        hudGroup.add(self)
+        self.dirty = True
+
+    #----------------------------------------------------------------------
+    def addChoose(self, cardClass):
+        if len(self._chosen) < 2:
+            self._chosen.append(cardClass)
+            self.dirty = True
+
+    #----------------------------------------------------------------------
+    def removeChoose(self, cardClass):
+        if self._chosen:
+            self._chosen.remove(cardClass)
+            self.dirty = True
+
+    #----------------------------------------------------------------------
+    def drawBg(self):
+        self.image.fill( (0,0,20) )
+        r = self.rect.move(0,0)
+        r.topleft = 0,0
+        pygame.draw.rect(self.image, blue, r, 8)
+        pygame.draw.rect(self.image, (200,200,255), r, 1)
+
+    #----------------------------------------------------------------------
+    def drawCards(self):
+        classes = [catan.Stone, catan.Brick, catan.Grain, catan.Sheep,
+                   catan.Wood]
+        x = 10
+        y = 20
+        for cls in classes:
+            addPos = vect_add((x,y), (0, -25))
+            self.addButtons[cls] = ChooseAddButton(self, addPos, cls)
+
+            removePos = vect_add((x,y), (0, 30))
+            self.removeButtons[cls] = ChooseRemoveButton(self, removePos, cls)
+
+            group = [cls()]
+            draw_cards(group, self.image, x, y, 2, 3)
+
+            x += 30
+
+        if self._chosen:
+            x = 210
+            y = 40
+            group = [cardClass() for cardClass in self._chosen]
+            draw_cards(group, self.image, x, y, 6, 0)
+           
+
+    #----------------------------------------------------------------------
+    def drawButtons(self):
+        self.dButton.update()
+        self.image.blit(self.dButton.image, self.dButton.rect)
+        for button in self.addButtons.values():
+            self.image.blit(button.image, button.rect)
+        for button in self.removeButtons.values():
+            self.image.blit(button.image, button.rect)
+
+    #----------------------------------------------------------------------
+    def update(self):
+        if not self.dirty:
+            return
+
+        if len(self._chosen) == 2:
+            self.dButton.hintlighted = True
+        else:
+            self.dButton.hintlighted = False
+
+        self.drawBg()
+        self.drawCards()
+        self.drawButtons()
+        self.dirty = False
+
+    #----------------------------------------------------------------------
+    def onChooseTwoCards(self, player, cards):
+        if player == self.player:
+            hudGroup.remove(self)
+            events.unregisterListener(self)
+            self.addButtons = None
+            self.removeButtons = None
+            self.kill()
+
+    #----------------------------------------------------------------------
+    def onMouseLeftDown(self, pos):
+        if not self.rect.collidepoint(pos):
+            return
+        self.dirty = True
+        innerPos = vect_diff(pos, self.topleft)
+        for button in self.addButtons.values() + self.removeButtons.values():
+            #print 'button', button, button.rect
+            if button.rect.collidepoint(innerPos):
+                #print 'button %s sees mouse inner' % button
+                button.click()
+        if self.dButton.rect.collidepoint(innerPos):
+            if self.dButton.hintlighted:
+                events.post('ChooseTwoCardsRequest', self.player, self._chosen)
+            
             
 #------------------------------------------------------------------------------
 class QuitTradeButton(TextButton):
@@ -1933,8 +2099,6 @@ class PlayerDisplay(EasySprite):
         if self.player != catan.game.state.activePlayer:
             return
 
-        #if newStage == catan.Stages.rolledRobberPlacement:
-        #    events.post('ShowRobberCursor', self.player)
         elif newStage in [catan.Stages.preRollChooseVictim,
                           catan.Stages.postRollChooseVictim]:
             possibleVictims = self.player.findPossibleVictims()
@@ -1975,6 +2139,10 @@ class PlayerDisplay(EasySprite):
 
     #----------------------------------------------------------------------
     def onItemPlaced(self, *args):
+        self.dirty = True
+
+    #----------------------------------------------------------------------
+    def onChooseTwoCards(self, player, cards):
         self.dirty = True
 
 

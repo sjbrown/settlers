@@ -241,6 +241,18 @@ class GameState(object):
         elif self.stage == Stages.postRollChooseVictim:
             self.stage = Stages.playerTurn
 
+    @allowedDuring(Stages.playerTurn)
+    def onChooseTwoCardsRequest(self, player, cardClasses):
+        print '      In CHOOSE TWO'
+        if player == self.activePlayer:
+            cards = []
+            for cls in cardClasses:
+                card = cls()
+                cards.append(card)
+                player.cards.append(card)
+            events.post('ChooseTwoCards', player, cards)
+
+
     @allowedDuring(Stages.cardHarvest)
     def onCardHarvestOver(self):
         self.stage = Stages.playerTurn
@@ -426,7 +438,7 @@ class YearOfPlenty(VictoryCard):
 class Monopoly(VictoryCard): pass
 
 # TODO: use the official distribution
-allVictoryCardClasses = [Soldier, Soldier, Soldier, Cathedral, University, Soldier, YearOfPlenty, Monopoly]
+allVictoryCardClasses = [YearOfPlenty, Soldier, Soldier, Soldier, Cathedral, University, Soldier, YearOfPlenty, Monopoly]
 
 terrainClasses = [Wheat]*4 + [Mud]*3 + [Mountain]*3 + [Grass]*4 + [Forest]*4 + [Desert]
 
@@ -570,6 +582,7 @@ class Player(object):
         self.victoryCards = []
         self.playedVictoryCards = []
         self.victoryCardPlayedThisTurn = False
+        self.victoryCardsBoughtThisTurn = []
         self.offer = []
         self.wants = []
         self.latestItem = None
@@ -681,6 +694,7 @@ class Player(object):
     def add(self, item):
         if isinstance(item, VictoryCard):
             self.victoryCards.append(item)
+            self.victoryCardsBoughtThisTurn.append(item)
             events.post('PlayerDrewVictoryCard', self, item)
         else:
             item.owner = self
@@ -761,6 +775,9 @@ class Player(object):
             return
         if self.victoryCardPlayedThisTurn:
             events.post('Error', 'Only one victory card per turn.')
+            return
+        if foundCard in self.victoryCardsBoughtThisTurn:
+            events.post('Error', 'Victory card was bought this turn')
             return
         if (game.state.stage == Stages.preRoll
             and not victoryCardClass == Soldier):
@@ -912,6 +929,7 @@ class HumanPlayer(Player):
     def onPlayerSet(self, newPlayer):
         if newPlayer == self:
             self.victoryCardPlayedThisTurn = False
+            self.victoryCardsBoughtThisTurn = []
 
     def onClickCorner(self, corner):
         if game.state.activePlayer != self:

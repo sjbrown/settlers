@@ -480,7 +480,8 @@ MixInClass( Edge, CopyableEdge )
 class CopyablePlayer(Serializable):
     copyworthy_attrs = ['identifier', 'color', 'latestItem', 'items', 'cards',
                         'victoryCards', 'playedVictoryCards',
-                        'victoryCardPlayedThisTurn']
+                        'victoryCardPlayedThisTurn',
+                        'victoryCardsBoughtThisTurn']
 
     def unserialize_items(self, stateDict, registry):
         neededObjIDs = []
@@ -534,6 +535,20 @@ class CopyablePlayer(Serializable):
             else:
                 placeholder = Placeholder(value, registry)
                 self.playedVictoryCards.append(registry[value])
+                neededObjIDs.append(value)
+
+        return neededObjIDs
+
+    def unserialize_victoryCardsBoughtThisTurn(self, stateDict, registry):
+        neededObjIDs = []
+        self.victoryCardsBoughtThisTurn = []
+        cardIDs = stateDict['victoryCardsBoughtThisTurn']
+        for value in cardIDs:
+            if value in registry:
+                self.victoryCardsBoughtThisTurn.append(registry[value])
+            else:
+                placeholder = Placeholder(value, registry)
+                self.victoryCardsBoughtThisTurn.append(registry[value])
                 neededObjIDs.append(value)
 
         return neededObjIDs

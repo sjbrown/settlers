@@ -243,7 +243,6 @@ class GameState(object):
 
     @allowedDuring(Stages.playerTurn)
     def onChooseTwoCardsRequest(self, player, cardClasses):
-        print '      In CHOOSE TWO'
         if player == self.activePlayer:
             cards = []
             for cls in cardClasses:
@@ -252,6 +251,11 @@ class GameState(object):
                 player.cards.append(card)
             events.post('ChooseTwoCards', player, cards)
 
+    @allowedDuring(Stages.playerTurn)
+    def onMonopolyRequest(self, player, cardClass):
+        print '      In MONO'
+        if player == self.activePlayer:
+            events.post('Monopoly', player, cardClass)
 
     @allowedDuring(Stages.cardHarvest)
     def onCardHarvestOver(self):
@@ -435,10 +439,15 @@ class YearOfPlenty(VictoryCard):
             raise Exception('should only play during player turn')
         events.post('ShowPlayerChooseTwoCards', player)
 
-class Monopoly(VictoryCard): pass
+class Monopoly(VictoryCard):
+    def action(self, player):
+        if game.state.stage != Stages.playerTurn:
+            raise Exception('should only play during player turn')
+        events.post('ShowMonopoly', player)
+
 
 # TODO: use the official distribution
-allVictoryCardClasses = [YearOfPlenty, Soldier, Soldier, Soldier, Cathedral, University, Soldier, YearOfPlenty, Monopoly]
+allVictoryCardClasses = [Monopoly, Soldier, Soldier, Soldier, Cathedral, University, Soldier, YearOfPlenty, Monopoly]
 
 terrainClasses = [Wheat]*4 + [Mud]*3 + [Mountain]*3 + [Grass]*4 + [Forest]*4 + [Desert]
 
@@ -923,8 +932,24 @@ class Player(object):
         self.offer = []
         self.wants = []
 
+    def onMonopolyGive(self, donor, receiver, cards):
+        print 'Give seen'
+        if self == receiver:
+            print 'I got', cards
+            for card in cards:
+                self.cards.append(card)
+
+    def onMonopoly(self, player, cardClass):
+        if player == self:
+            return
+        stolen = [card for card in self.cards if isinstance(card, cardClass)]
+        for card in stolen:
+            self.cards.remove(card)
+        events.post('MonopolyGive', self, player, stolen)
 
 
+
+# -----------------------------------------------------------------------------
 class HumanPlayer(Player):
     def onPlayerSet(self, newPlayer):
         if newPlayer == self:

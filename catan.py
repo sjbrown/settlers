@@ -271,7 +271,7 @@ class GameState(object):
             self.nextPlayer()
             self.stage = Stages.preRoll
 
-debugRolls = [(1,2), (2,5), (2,1), (2,1), (6,6)]
+debugRolls = [(1,2), (4,4), (2,1), (2,1), (6,6)]
 class Dice(object):
     def __init__(self):
         events.registerListener(self)
@@ -655,6 +655,10 @@ class Player(object):
         return game.longestRoadPlayer == self
     hasLongestRoad = property(getHasLongestRoad)
 
+    def getPorts(self): #TODO
+        return [(None, 4)]
+    ports = property(getPorts)
+
     def armySize(self):
         return len( [c for c in self.playedVictoryCards
                      if isinstance(c, Soldier)] )
@@ -932,6 +936,15 @@ class Player(object):
         self.offer = []
         self.wants = []
 
+    def onMaritimeTrade(self, player, playerCards, portCards):
+        if self == player:
+            for card in playerCards:
+                self.cards.remove(card)
+            for card in portCards:
+                self.cards.append(card)
+        self.offer = []
+        self.wants = []
+
     def onMonopolyGive(self, donor, receiver, cards):
         print 'Give seen'
         if self == receiver:
@@ -1004,11 +1017,15 @@ class HumanPlayer(Player):
     def onProposeTrade(self, player, toGive, toTake):
         if player == self:
             self.offer = []
-            for cls in toGive:
+            for cls, howMany in toGive.items():
                 for card in self.cards:
                     if card.__class__ == cls and card not in self.offer:
                         self.offer.append(card)
-                        break
+                        howMany -= 1
+                        if howMany == 0:
+                            break
+                if howMany != 0:
+                    events.post('Error', 'Player does not have enough cards')
             self.wants = toTake
 
     def onConfirmProposalRequest(self, opponent, proposal):
@@ -1036,6 +1053,49 @@ class HumanPlayer(Player):
             return
         events.post('ConfirmProposal', self, opponent,
                     self.offer, opponent.offer)
+
+    def onMaritimeTradeRequest(self, proposal):
+        if game.state.activePlayer != self:
+            return
+        giveCards = proposal[0][:] #copy
+        takeCardClasses = proposal[1][:] #copy
+        print 'giveCards', giveCards
+        print 'takeCardClasses', takeCardClasses
+        # giveCards should be one card of any type
+        if len(giveCards) != 1:
+            events.post('Error', 'Maritime trades are for one card only')
+            return
+        # check that player has enough cards for the proposal
+        print 'self offer', self.offer
+        offerClass = self.offer[0].__class__ # should only be one class offered
+        for card in self.offer:
+            try:
+                takeCardClasses.remove(card.__class__)
+                if card.__class__ != offerClass:
+                    raise ValueError('All offered cards should be same class')
+            except ValueError:
+                print 'fail maritime req', ex
+                raise
+        if takeCardClasses != []:
+            print 'fail maritime req extra', takeCardClasses
+            return
+
+        # check the proposal is valid based on the porst the player can access
+        foundPort = False
+        for cardClass, howMany in self.ports:
+            if len(proposal[1]) != howMany:
+                continue
+            if cardClass == None:
+                foundPort = True
+                break
+            elif cardClass == proposal[1][0].__class__:
+                foundPort = True
+                break
+        if not foundPort:
+            events.post('Error', 'No maritime port to take the trade')
+            return
+
+        events.post('MaritimeTrade', self, self.offer, giveCards)
 
 
 class CPUPlayer(Player):

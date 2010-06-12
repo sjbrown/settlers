@@ -118,6 +118,21 @@ class Serializable:
         return neededObjIDs
 
 
+def unserialize_shallow_list(attrName):
+    def unserialize_fn(self, stateDict, registry):
+        neededObjIDs = []
+        newList = []
+        setattr(self, attrName,  newList)
+        itemIDs = stateDict[attrName]
+        for value in itemIDs:
+            if value in registry:
+                newList.append(registry[value])
+            else:
+                placeholder = Placeholder(value, registry)
+                newList.append(registry[value])
+                neededObjIDs.append(value)
+        return neededObjIDs
+    return unserialize_fn
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 # For each event class, if it is sendable over the network, we have 
@@ -483,80 +498,19 @@ class CopyablePlayer(Serializable):
                         'victoryCardPlayedThisTurn',
                         'victoryCardsBoughtThisTurn']
 
-    def unserialize_items(self, stateDict, registry):
-        neededObjIDs = []
-        self.items = []
-        itemIDs = stateDict['items']
-        for value in itemIDs:
-            if value in registry:
-                self.items.append(registry[value])
-            else:
-                placeholder = Placeholder(value, registry)
-                self.items.append(registry[value])
-                neededObjIDs.append(value)
-
-        return neededObjIDs
-
-    def unserialize_cards(self, stateDict, registry):
-        neededObjIDs = []
-        self.cards = []
-        cardIDs = stateDict['cards']
-        for value in cardIDs:
-            if value in registry:
-                self.cards.append(registry[value])
-            else:
-                placeholder = Placeholder(value, registry)
-                self.cards.append(registry[value])
-                neededObjIDs.append(value)
-
-        return neededObjIDs
-
-    def unserialize_victoryCards(self, stateDict, registry):
-        neededObjIDs = []
-        self.victoryCards = []
-        cardIDs = stateDict['victoryCards']
-        for value in cardIDs:
-            if value in registry:
-                self.victoryCards.append(registry[value])
-            else:
-                placeholder = Placeholder(value, registry)
-                self.victoryCards.append(registry[value])
-                neededObjIDs.append(value)
-
-        return neededObjIDs
-
-    def unserialize_playedVictoryCards(self, stateDict, registry):
-        neededObjIDs = []
-        self.playedVictoryCards = []
-        cardIDs = stateDict['playedVictoryCards']
-        for value in cardIDs:
-            if value in registry:
-                self.playedVictoryCards.append(registry[value])
-            else:
-                placeholder = Placeholder(value, registry)
-                self.playedVictoryCards.append(registry[value])
-                neededObjIDs.append(value)
-
-        return neededObjIDs
-
-    def unserialize_victoryCardsBoughtThisTurn(self, stateDict, registry):
-        neededObjIDs = []
-        self.victoryCardsBoughtThisTurn = []
-        cardIDs = stateDict['victoryCardsBoughtThisTurn']
-        for value in cardIDs:
-            if value in registry:
-                self.victoryCardsBoughtThisTurn.append(registry[value])
-            else:
-                placeholder = Placeholder(value, registry)
-                self.victoryCardsBoughtThisTurn.append(registry[value])
-                neededObjIDs.append(value)
-
-        return neededObjIDs
+    unserialize_items = unserialize_shallow_list('items')
+    unserialize_cards = unserialize_shallow_list('cards')
+    unserialize_victoryCards = unserialize_shallow_list('victoryCards')
+    unserialize_playedVictoryCards = \
+     unserialize_shallow_list('playedVictoryCards')
+    unserialize_victoryCardsBoughtThisTurn = \
+     unserialize_shallow_list('victoryCardsBoughtThisTurn')
 
     def postUnserialize(self):
         self.activeItem = None
+        self.offer = []
+        self.wants = []
         events.registerListener(self)
-
 
 MixInClass( Player, CopyablePlayer )
 

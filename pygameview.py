@@ -1724,6 +1724,30 @@ class ProposalMatchButton(TextButton):
         self.parent.matchProposal(self.opponent.proposal)
 
 #------------------------------------------------------------------------------
+class MaritimeMatchButton(TextButton):
+    def __init__(self, parent, pos):
+        EasySprite.__init__(self)
+        Highlightable.__init__(self)
+        events.registerListener(self)
+        self.parent = parent
+        self.proposal = None
+        self.hidden = True
+        self.text = 'Match'
+        self.rect = Rect(pos[0], pos[1], 60,12)
+        self.image = EasySurface(self.rect.size)
+        self.draw()
+
+    def click(self):
+        print 'maritime match clicked'
+        if self.hidden:
+            return
+        if not self.proposal:
+            print 'maritime match no proposal'
+            return
+        print 'maritime match proposal match.'
+        self.parent.matchProposal(self.proposal)
+
+#------------------------------------------------------------------------------
 class ProposeConfirmButton(TextButton):
     def __init__(self, pos):
         EasySprite.__init__(self)
@@ -1745,16 +1769,39 @@ class ProposeConfirmButton(TextButton):
         events.post('ConfirmProposalRequest', self.opponent, self.proposal)
 
 #------------------------------------------------------------------------------
+class MaritimeConfirmButton(TextButton):
+    def __init__(self, pos):
+        EasySprite.__init__(self)
+        Highlightable.__init__(self)
+        events.registerListener(self)
+        self.proposal = None
+        self.hidden = True
+        self.text = 'Confirm'
+        self.rect = Rect(pos[0], pos[1], 60,12)
+        self.image = EasySurface(self.rect.size)
+        self.draw()
+
+    def click(self):
+        if self.hidden:
+            return
+        if not self.proposal:
+            return
+        events.post('MaritimeTradeRequest', self.proposal)
+
+#------------------------------------------------------------------------------
 class TradeGiveButton(CardAddButton):
     def __init__(self, parent, pos, cardClass):
         CardAddButton.__init__(self, parent, pos, cardClass, symbol='^')
 
     def click(self):
-        group = self.cardSubset()
-        given = self.parent._cardsToGive.get(self.cardClass, [])
-        ungiven = group.difference(set(given))
-        if ungiven:
-            self.parent.addCard(ungiven.pop())
+        playerCardsOfClass = self.cardSubset()
+        self.parent.addCard(self.cardClass, playerCardsOfClass)
+    #def click(self):
+        #group = self.cardSubset()
+        #given = self.parent._cardsToGive.get(self.cardClass, [])
+        #ungiven = group.difference(set(given))
+        #if ungiven:
+            #self.parent.addCard(ungiven.pop())
 
 #------------------------------------------------------------------------------
 class TradeTakeButton(CardAddButton):
@@ -1770,7 +1817,7 @@ class TradeDisplay(EasySprite):
         EasySprite.__init__(self)
         events.registerListener(self)
         hudGroup.add(self)
-        self.image = EasySurface( (280,180) )
+        self.image = EasySurface( (380,180) )
         self.rect = self.image.get_rect()
 
         # TODO: i'm not really liking these collections living here. I should
@@ -1790,6 +1837,12 @@ class TradeDisplay(EasySprite):
         self.confirmButtons = [ ProposeConfirmButton((0,0)),
                                 ProposeConfirmButton((0,0)),
                                 ProposeConfirmButton((0,0)),]
+        self.maritimeMatchButtons = [
+                              MaritimeMatchButton(self, (0,0)),
+                              ]
+        self.maritimeConfirmButtons = [
+                                MaritimeConfirmButton((0,0)),
+                                ]
         self.drawBg()
         self.drawCards()
         self.drawOpponents()
@@ -1811,35 +1864,93 @@ class TradeDisplay(EasySprite):
         cardClassesToGive = {}
         for cardClass, cardList in self._cardsToGive.items():
             cardClassesToGive[cardClass] = len(cardList)
+        print 'GUI propose', humanPlayer
+        print 'to give', cardClassesToGive
+        print 'to take', self._cardClassesToTake
         events.post('ProposeTrade', humanPlayer,
                     cardClassesToGive, self._cardClassesToTake)
+
+    #----------------------------------------------------------------------
+    def matchProposal(self, proposal):
+        '''Human player matches the proposal put forward by an opponent
+        (or by a maritime trade port)
+        '''
+        toGive, toTake = proposal
+        newCardsToGive = {}
+        newCardClassesToTake = defaultdict(lambda:0)
+        # TODO: asDict returns a dict of class=>list items because doing
+        # dict(group_cards(...)) makes all the items empty for some reason
+        cardDict = group_cards(humanPlayer.cards, asDict=True)
+        print 'togive', toGive
+        print 'totake', toTake
+        print cardDict
+        try:
+            for cls in toTake:
+                matchingCards = cardDict[cls]
+                card = matchingCards.pop()
+                cardList = newCardsToGive.setdefault(cls, [])
+                cardList.append(card)
+        except (StopIteration, KeyError), ex:
+            print 'there werent enough cards of that class'
+            print 'ex', ex
+            print 'exargs', ex.args
+            return # there weren't enough cards of that class
+        for x in toGive:
+            #TODO: this is a hack until i standardize on proposal datastruct
+            if type(x) == type:
+                #it's a class
+                newCardClassesToTake[x] += 1
+            else:
+                newCardClassesToTake[x.__class__] += 1
+        self._cardsToGive = newCardsToGive
+        self._cardClassesToTake = newCardClassesToTake
+        self.propose()
+        self.dirty = True
 
     #----------------------------------------------------------------------
     def matchesProposal(self, proposal):
         opponentGive, opponentTake = proposal
         opponentGive = opponentGive[:] #copy
         opponentTake = opponentTake[:] #copy
+        print '----'
+        #print 'op give', opponentGive
+        #print 'self take', self._cardClassesToTake
+        #print 'op take', opponentTake
+        #print 'self give', self._cardsToGive
         try:
             for cardClass in self._cardsToGive:
                 for card in self._cardsToGive[cardClass]:
                     opponentTake.remove(cardClass)
             for cardClass, howMany in self._cardClassesToTake.items():
                 for i in range(howMany):
-                    opponentGive.remove(cardClass)
-        except ValueError:
+                    #TODO: this is a hack until i standardize on proposal datastruct
+                    if type(opponentGive[0]) == type:
+                        #it's a class
+                        opponentGive.remove(cardClass)
+                    else:
+                        card = [x for x in opponentGive
+                                if x.__class__ == cardClass][0]
+                        opponentGive.remove(card)
+        except (ValueError, IndexError), ex:
+            print 'ValueError', ex, ex.args
             return False
+        #print 'op give', opponentGive
+        #print 'op take', opponentTake
         if opponentGive != [] or opponentTake != []:
             return False
         return True
 
     #----------------------------------------------------------------------
-    def addCard(self, card):
-        cardClass = card.__class__
+    def addCard(self, cardClass, playerCardsOfClass):
         if self._cardClassesToTake.get(cardClass):
             self._cardClassesToTake[cardClass] -= 1
         else:
+            given = self._cardsToGive.get(cardClass, [])
+            ungiven = playerCardsOfClass.difference(set(given))
+            if not ungiven:
+                return
             cardList = self._cardsToGive.setdefault(cardClass, [])
-            cardList.append(card)
+            cardList.append(ungiven.pop())
         self.propose()
         self.dirty = True
 
@@ -1961,46 +2072,101 @@ class TradeDisplay(EasySprite):
                 self.image.blit(cButton.image, cButton.rect)
 
     #----------------------------------------------------------------------
+    def drawMaritime(self):
+        padX, padY = 215, 5
+        for i, port in enumerate(humanPlayer.ports):
+            portCardClass, portAmt = port
+            x = padX + 60*i
+            y = padY
+            identifier = str(portAmt)+':1' # '4:1' or '2:1'
+            if portCardClass:
+                identifier = portCardClass.__name__[0] + identifier
+            txtImg = font_render(identifier, color=blue)
+            self.image.blit(txtImg, (x, y))
+
+            playerOffer = []
+            # if the player has offered some cards take the first group of 4
+            cardGroups = group_cards(humanPlayer.offer)
+            for cls, group in cardGroups:
+                group = list(group)
+                if len(group) >= portAmt:
+                    playerOfferClass = cls
+                    playerOffer = group[:portAmt]
+            # if the player has cards in their hand, take the first group of 4
+            if not playerOffer:
+                cardGroups = group_cards(humanPlayer.cards)
+                for cls, group in cardGroups:
+                    group = list(group)
+                    if len(group) >= portAmt:
+                        playerOfferClass = cls
+                        playerOffer = group[:portAmt]
+
+            # draw the trader's proposed trade
+            cButton = self.maritimeConfirmButtons[i]
+            mButton = self.maritimeMatchButtons[i]
+
+            if not playerOffer:
+                cButton.hidden = True
+                continue
+
+            classes = [catan.Stone, catan.Brick, catan.Grain, catan.Sheep,
+                       catan.Wood]
+            xoffset = x + classes.index(playerOfferClass)*8
+            draw_cards(playerOffer, self.image, xoffset, y+5, 0,0, number=True)
+
+            if not humanPlayer.wants:
+                cButton.hidden = True
+                continue
+
+            traderOffer = []
+            for cls, howMany in humanPlayer.wants.items():
+                if howMany:
+                    traderOfferClass = cls
+                    traderOffer = [cls()]
+            if traderOffer:
+                xoffset = x + classes.index(traderOfferClass)*8
+                draw_cards(traderOffer, self.image,
+                           xoffset, y+10, 0,0, number=True)
+
+            proposal = [traderOffer, [card.__class__ for card in playerOffer]]
+
+            # draw proposematch button
+            mButton.hidden = False
+            mButton.proposal = proposal
+            mButton.x = x
+            mButton.y = y+40
+            mButton.update()
+            self.image.blit(mButton.image, mButton.rect)
+
+            # draw proposeconfirm button
+            if self.matchesProposal(proposal):
+                cButton.hidden = False
+                cButton.proposal = proposal
+                cButton.x = x
+                cButton.y = y+52
+                cButton.update()
+                self.image.blit(cButton.image, cButton.rect)
+
+    #----------------------------------------------------------------------
     def update(self):
         self.drawBg()
         self.drawCards()
         self.drawOpponents()
+        self.drawMaritime()
         self.drawButtons()
 
         self.dirty = False
 
     #----------------------------------------------------------------------
-    def matchProposal(self, proposal):
-        toGive, toTake = proposal
-        newCardsToGive = {}
-        newCardClassesToTake = defaultdict(lambda:0)
-        # TODO: asDict returns a dict of class=>list items because doing
-        # dict(group_cards(...)) makes all the items empty for some reason
-        cardDict = group_cards(humanPlayer.cards, asDict=True)
-        try:
-            for cls in toTake:
-                matchingCards = cardDict[cls]
-                card = matchingCards.pop()
-                cardList = newCardsToGive.setdefault(cls, [])
-                cardList.append(card)
-        except (StopIteration, KeyError):
-            print 'there werent enough cards of that class'
-            return # there weren't enough cards of that class
-        for cls in toGive:
-            newCardClassesToTake[cls] += 1
-        self._cardsToGive = newCardsToGive
-        self._cardClassesToTake = newCardClassesToTake
-        self.propose()
-        self.dirty = True
-
-    #----------------------------------------------------------------------
     def onProposeTrade(self, player, toGive, toTake):
-        if player == humanPlayer:
-            return
         self.dirty = True
 
     #----------------------------------------------------------------------
     def onConfirmProposal(self, *args):
+        self.reset()
+
+    #----------------------------------------------------------------------
+    def onMaritimeTrade(self, *args):
         self.reset()
 
     #----------------------------------------------------------------------
@@ -2020,6 +2186,8 @@ class TradeDisplay(EasySprite):
                       + self.takeButtons.values()
                       + self.textButtons
                       + self.confirmButtons
+                      + self.maritimeConfirmButtons
+                      + self.maritimeMatchButtons
                       + self.matchButtons):
             if hasattr(button, 'onMouseMotion'):
                 button.onMouseMotion(innerPos, buttons)
@@ -2034,6 +2202,8 @@ class TradeDisplay(EasySprite):
                       + self.takeButtons.values()
                       + self.textButtons
                       + self.confirmButtons
+                      + self.maritimeConfirmButtons
+                      + self.maritimeMatchButtons
                       + self.matchButtons):
             if button.rect.collidepoint(innerPos):
                 button.click()
@@ -2278,6 +2448,10 @@ class PlayerDisplay(EasySprite):
 
     #----------------------------------------------------------------------
     def onConfirmProposal(self, *args):
+        self.dirty = True
+
+    #----------------------------------------------------------------------
+    def onMaritimeTrade(self, *args):
         self.dirty = True
 
     #----------------------------------------------------------------------

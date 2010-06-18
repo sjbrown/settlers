@@ -228,7 +228,9 @@ class KeyboardController:
                 if event.key == K_ESCAPE:
                     # Hit Shift-ESC or Ctrl-ESC to go to the debugger
                     # otherwise ESC will quit the game
-                    if event.mod:
+                    if event.mod and (
+                       event.mod & KMOD_SHIFT or event.mod & KMOD_CTRL):
+                        print 'event mod', event.mod
                         import pdb
                         pdb.set_trace()
                     else:
@@ -706,7 +708,6 @@ class Tile(EasySprite, Highlightable):
         self.rect = self.image.get_rect()
         r = self.rect
 
-        #self.image.fill( (0,255,128) )
         text = tile.name
         textImg = font_render(text)
         self.image.blit( textImg, r.center )
@@ -776,9 +777,9 @@ class Tile(EasySprite, Highlightable):
                 pygame.draw.circle(self.image, color2, r.center, radius2)
 
         # draw the tile name
-        text = self.tile.name
-        textImg = font_render(text, color=(0,0,0, 18))
-        self.image.blit(textImg, vect_add(r.midtop,(0,20)))
+        #text = self.tile.name
+        #textImg = font_render(text, color=(0,0,0, 18))
+        #self.image.blit(textImg, vect_add(r.midtop,(0,20)))
 
         # draw the pip
         if self.tile.pip:
@@ -861,9 +862,9 @@ class Corner(EasySprite, Highlightable):
         else:
             bgcolor = (0,255,28, 128)
         self.image.fill( bgcolor )
-        text = self.corner.name
-        textImg = font_render(text, size=15, color=(5,0,0))
-        self.image.blit( textImg, (0,0) )
+        #text = self.corner.name
+        #textImg = font_render(text, size=15, color=(5,0,0))
+        #self.image.blit( textImg, (0,0) )
         if self.hintlighted:
             pygame.draw.rect(self.image, white, self.image.get_rect(), 1)
 

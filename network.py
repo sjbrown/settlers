@@ -346,7 +346,7 @@ MixInClass( Pip, CopyablePip )
 
 #------------------------------------------------------------------------------
 class CopyableBoard(Serializable):
-    copyworthy_attrs = ['robber']
+    copyworthy_attrs = ['robber', 'ports']
     registry_attrs = ['robber']
 
     def getStateToCopy(self, registry):
@@ -423,6 +423,7 @@ class CopyableBoard(Serializable):
                 tile.addEdge(e)
 
         self.populateGraphicalPositions()
+        self.layOutPorts()
         events.registerListener(self)
 
         return neededObjIDs +\

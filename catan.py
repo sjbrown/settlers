@@ -510,7 +510,12 @@ class Board(object):
                       (Grain,2), (Brick,2), (Stone,2), (Sheep,2), (Lumber,2)]
         random.shuffle(self.ports)
 
+        self.layOutPorts()
+
         events.post('BoardCreated', self)
+
+    def layOutPorts(self):
+        pass
 
     def populateGraphicalPositions(self):
         for i in range(len(self.tiles)):

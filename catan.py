@@ -377,7 +377,7 @@ class Settlement(FiniteGameObject):
         return bool(spots)
 
 class City(Settlement):
-    cost = [Grain, Grain, Grain, Stone, Stone]
+    cost = [Grain, Grain, Stone, Stone, Stone]
     maxPerPlayer = 5 #TODO check this
 
     @classmethod
@@ -455,6 +455,7 @@ class Pip(object):
     def __init__(self, value):
         self.value = value
 
+
 class Board(object):
     '''
     The .tiles attribute is laid out graphically like so:
@@ -504,6 +505,10 @@ class Board(object):
             else:
                 tile.pip = pips.pop(0)
             self.tiles.append(tile)
+
+        self.ports = [(None,3), (None,3), (None,3), (None,3),
+                      (Grain,2), (Brick,2), (Stone,2), (Sheep,2), (Lumber,2)]
+        random.shuffle(self.ports)
 
         events.post('BoardCreated', self)
 
@@ -845,10 +850,8 @@ class Player(object):
         connectedCorners = []
         for corner in corners:
             for e in corner.edges:
-                print 'e', e, e.stuff
-                if not e.road:
+                if not e or not e.road:
                     continue
-                print 'road', e, e.stuff
                 if e.road.owner == self:
                     connectedCorners.append(corner)
         return connectedCorners

@@ -1894,8 +1894,19 @@ class TradeDisplay(EasySprite):
                                 ProposeConfirmButton((0,0)),]
         self.maritimeMatchButtons = [
                               MaritimeMatchButton(self, (0,0)),
+                              MaritimeMatchButton(self, (0,0)),
+                              MaritimeMatchButton(self, (0,0)),
+                              MaritimeMatchButton(self, (0,0)),
+                              MaritimeMatchButton(self, (0,0)),
+                              MaritimeMatchButton(self, (0,0)),
                               ]
         self.maritimeConfirmButtons = [
+                                MaritimeConfirmButton((0,0)),
+                                MaritimeConfirmButton((0,0)),
+                                MaritimeConfirmButton((0,0)),
+                                MaritimeConfirmButton((0,0)),
+                                MaritimeConfirmButton((0,0)),
+                                MaritimeConfirmButton((0,0)),
                                 MaritimeConfirmButton((0,0)),
                                 ]
         self.drawBg()

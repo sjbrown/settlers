@@ -690,7 +690,12 @@ class Player(object):
     hasLongestRoad = property(getHasLongestRoad)
 
     def getPorts(self): #TODO
-        return [(None, 4)]
+        ports = set()
+        for s in self.smallSettlements + self.cities:
+            if s.location.port:
+                ports.add(s.location.port)
+        defaultPort = Port((None,4))
+        return list(ports) + [defaultPort]
     ports = property(getPorts)
 
     def armySize(self):
@@ -1120,7 +1125,8 @@ class HumanPlayer(Player):
             if cardClass == None:
                 foundPort = True
                 break
-            elif cardClass == proposal[1][0].__class__:
+            elif cardClass == proposal[1][0]:
+                #all of them should be the same class
                 foundPort = True
                 break
         if not foundPort:

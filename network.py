@@ -345,6 +345,14 @@ class CopyablePip(Serializable):
 MixInClass( Pip, CopyablePip )
 
 #------------------------------------------------------------------------------
+class CopyablePort(Serializable):
+    def getStateToCopy(self, registry):
+        d = {'tuple': serialize(list(self), registry)}
+        return d
+    def setCopyableState(self, stateDict, registry):
+        for tID, tdict in stateDict['tuple']:
+
+#------------------------------------------------------------------------------
 class CopyableBoard(Serializable):
     copyworthy_attrs = ['robber', 'ports']
     registry_attrs = ['robber']

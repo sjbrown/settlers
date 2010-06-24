@@ -455,6 +455,16 @@ class Pip(object):
     def __init__(self, value):
         self.value = value
 
+class Port(tuple):
+    def __hash__(self):
+        return id(self)
+
+    def __repr__(self):
+        if self[0]:
+            return '<'+ str(self[0].__name__) + '/' + str(self[1]) + '>'
+        else:
+            return '<'+ str(self[0]) + '/' + str(self[1]) + '>'
+
 
 class Board(object):
     '''
@@ -506,8 +516,11 @@ class Board(object):
                 tile.pip = pips.pop(0)
             self.tiles.append(tile)
 
-        self.ports = [(None,3), (None,3), (None,3), (None,3),
-                      (Grain,2), (Brick,2), (Stone,2), (Sheep,2), (Lumber,2)]
+        self.ports = [Port((None,3)), Port((None,3)),
+                      Port((None,3)), Port((None,3)),
+                      Port((Grain,2)), Port((Brick,2)),
+                      Port((Stone,2)), Port((Sheep,2)),
+                      Port((Wood,2))]
         random.shuffle(self.ports)
 
         self.layOutPorts()
@@ -515,7 +528,18 @@ class Board(object):
         events.post('BoardCreated', self)
 
     def layOutPorts(self):
-        pass
+        positions = [(36,37), (39,40), (48,50),
+                     (41,42), (34,35), (43,45),
+                     (53,54), (25,27), (28,30),
+                    ]
+        # TODO, don't hardcode this, calculate it.  All it would take
+        #       for this to break would be the allCorners list changing order
+        for i, port in enumerate(self.ports):
+            num1, num2 = positions[i]
+            c1 = mapmodel.allCorners[num1-1]
+            c2 = mapmodel.allCorners[num2-1]
+            c1.port = port
+            c2.port = port
 
     def populateGraphicalPositions(self):
         for i in range(len(self.tiles)):

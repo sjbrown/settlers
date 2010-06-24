@@ -11,6 +11,7 @@ allCorners = []
 allEdges = []
 cornersToTiles = {}
 edgesToTiles = {}
+portsToCorners = {}
 centerTile = None
 
 #------------------------------------------------------------------------------
@@ -214,6 +215,18 @@ class Corner(BuildableLocation):
         for e in self.getEdges():
             peers.append( e.otherCorner(self) )
         return peers
+
+    def getPort(self):
+        for port in portsToCorners:
+            if self in portsToCorners[port]:
+                return port
+        return None
+    def setPort(self, port):
+        if port in portsToCorners:
+            portsToCorners[port].append(self)
+        else:
+            portsToCorners[port] = [self]
+    port = property(getPort, setPort)
 
     def tileDistance(self):
         ctiles = cornersToTiles[self]

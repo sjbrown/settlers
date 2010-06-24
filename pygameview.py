@@ -23,6 +23,7 @@ cornerGroup = pygame.sprite.RenderUpdates()
 cornerModelToSprite = {}
 edgeGroup = pygame.sprite.RenderUpdates()
 edgeModelToSprite = {}
+portGroup = pygame.sprite.RenderUpdates()
 hudGroup = pygame.sprite.RenderUpdates()
 
 terrain_colors = {
@@ -837,6 +838,54 @@ class Tile(EasySprite, Highlightable):
                 
 
 #------------------------------------------------------------------------------
+class Port(EasySprite, Highlightable):
+    def __init__(self, port):
+        EasySprite.__init__(self)
+        Highlightable.__init__(self)
+        events.registerListener(self)
+
+        self.image = EasySurface( (20,20) )
+        self.rect = self.image.get_rect()
+        self.port = port
+
+        self.drawBg()
+
+        portGroup.add(self)
+
+    def drawBg(self):
+        if self.hoverlighted:
+            bgcolor = (255,255,0, 250)
+        elif self.hintlighted:
+            bgcolor = (255,128,0, 200)
+        else:
+            bgcolor = (255,128,0, 128)
+        self.image.fill( bgcolor )
+        text = str(self.port[1])
+        if self.port[0]:
+            text += self.port[0].__name__[:2]
+        textImg = font_render(text, size=18, color=(5,0,0))
+        self.image.blit( textImg, (0,0) )
+
+    def update(self):
+        if not self.dirty:
+            return
+
+        self.drawBg()
+
+        print mapmodel.portsToCorners
+        c1, c2 = mapmodel.portsToCorners[self.port]
+        cSprite1 = cornerModelToSprite[c1]
+        cSprite2 = cornerModelToSprite[c2]
+
+        lenVect = vect_diff(cSprite1.center, cSprite2.center)
+        lenVect = vect_scal_mult(lenVect, .5)
+        midpoint = vect_diff(cSprite1.center, lenVect)
+        self.rect.center = midpoint
+
+        self.dirty = False
+
+
+#------------------------------------------------------------------------------
 class Corner(EasySprite, Highlightable):
     def __init__(self, corner):
         #print 'making corner', corner.name
@@ -853,7 +902,6 @@ class Corner(EasySprite, Highlightable):
         cornerGroup.add(self)
         cornerModelToSprite[corner] = self
 
-
     def drawBg(self):
         if self.hoverlighted:
             bgcolor = (0,255,28, 250)
@@ -862,9 +910,9 @@ class Corner(EasySprite, Highlightable):
         else:
             bgcolor = (0,255,28, 128)
         self.image.fill( bgcolor )
-        #text = self.corner.name
-        #textImg = font_render(text, size=15, color=(5,0,0))
-        #self.image.blit( textImg, (0,0) )
+        text = self.corner.name
+        textImg = font_render(text, size=15, color=(5,0,0))
+        self.image.blit( textImg, (0,0) )
         if self.hintlighted:
             pygame.draw.rect(self.image, white, self.image.get_rect(), 1)
 
@@ -1107,10 +1155,12 @@ class PygameView:
             # minus because pygame uses less = up in the y dimension
             y = 300 - tSprite.tile.graphicalPosition[1]*55
             tSprite.rect.move_ip(x,y)
-        for c in catan.mapmodel.allCorners:
+        for c in mapmodel.allCorners:
             corner = Corner(c)
-        for e in catan.mapmodel.allEdges:
+        for e in mapmodel.allEdges:
             eSprite = Edge(e)
+        for p in mapmodel.portsToCorners.keys():
+            pSprite = Port(p)
             
     #----------------------------------------------------------------------
     def drawCursor(self):
@@ -1134,6 +1184,10 @@ class PygameView:
         for cSprite in cornerGroup:
             cSprite.update()
         dirtyRects = cornerGroup.draw( self.window )
+
+        for pSprite in portGroup:
+            pSprite.update()
+        dirtyRects = portGroup.draw( self.window )
 
         for eSprite in edgeGroup:
             eSprite.update()

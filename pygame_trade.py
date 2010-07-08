@@ -10,9 +10,9 @@ from pygame_utils import *
 
 
 #------------------------------------------------------------------------------
-class TradeButton(TextButton):
+class TradeButton(SimpleTextButton):
     def __init__(self):
-        TextButton.__init__(self, (150,50), 'TRADE')
+        SimpleTextButton.__init__(self, (150,50), 'TRADE')
 
     #----------------------------------------------------------------------
     def onMouseLeftDown(self, pos):
@@ -24,13 +24,13 @@ class TradeButton(TextButton):
 
 
 #------------------------------------------------------------------------------
-class QuitTradeButton(TextButton):
+class QuitTradeButton(SimpleTextButton):
     def __init__(self, pos):
         EasySprite.__init__(self)
         Highlightable.__init__(self)
         events.registerListener(self)
         self.text = 'QUIT TRADE'
-        self.rect = Rect(pos[0], pos[1], 100,12)
+        self.rect = pygame.Rect(pos[0], pos[1], 100,12)
         self.image = EasySurface(self.rect.size)
         self.draw()
 
@@ -38,7 +38,7 @@ class QuitTradeButton(TextButton):
         events.post('HideTrade')
 
 #------------------------------------------------------------------------------
-class ProposalMatchButton(TextButton):
+class ProposalMatchButton(SimpleTextButton):
     def __init__(self, parent, pos):
         EasySprite.__init__(self)
         Highlightable.__init__(self)
@@ -47,7 +47,7 @@ class ProposalMatchButton(TextButton):
         self.opponent = None
         self.hidden = True
         self.text = 'Match'
-        self.rect = Rect(pos[0], pos[1], 60,12)
+        self.rect = pygame.Rect(pos[0], pos[1], 60,12)
         self.image = EasySurface(self.rect.size)
         self.draw()
 
@@ -59,7 +59,7 @@ class ProposalMatchButton(TextButton):
         self.parent.matchProposal(self.opponent.proposal)
 
 #------------------------------------------------------------------------------
-class MaritimeMatchButton(TextButton):
+class MaritimeMatchButton(SimpleTextButton):
     def __init__(self, parent, pos):
         EasySprite.__init__(self)
         Highlightable.__init__(self)
@@ -68,7 +68,7 @@ class MaritimeMatchButton(TextButton):
         self.proposal = None
         self.hidden = True
         self.text = 'Match'
-        self.rect = Rect(pos[0], pos[1], 60,12)
+        self.rect = pygame.Rect(pos[0], pos[1], 60,12)
         self.image = EasySurface(self.rect.size)
         self.draw()
 
@@ -83,7 +83,7 @@ class MaritimeMatchButton(TextButton):
         self.parent.matchProposal(self.proposal)
 
 #------------------------------------------------------------------------------
-class ProposeConfirmButton(TextButton):
+class ProposeConfirmButton(SimpleTextButton):
     def __init__(self, pos):
         EasySprite.__init__(self)
         Highlightable.__init__(self)
@@ -92,7 +92,7 @@ class ProposeConfirmButton(TextButton):
         self.proposal = None
         self.hidden = True
         self.text = 'Confirm'
-        self.rect = Rect(pos[0], pos[1], 60,12)
+        self.rect = pygame.Rect(pos[0], pos[1], 60,12)
         self.image = EasySurface(self.rect.size)
         self.draw()
 
@@ -104,7 +104,7 @@ class ProposeConfirmButton(TextButton):
         events.post('ConfirmProposalRequest', self.opponent, self.proposal)
 
 #------------------------------------------------------------------------------
-class MaritimeConfirmButton(TextButton):
+class MaritimeConfirmButton(SimpleTextButton):
     def __init__(self, pos):
         EasySprite.__init__(self)
         Highlightable.__init__(self)
@@ -112,7 +112,7 @@ class MaritimeConfirmButton(TextButton):
         self.proposal = None
         self.hidden = True
         self.text = 'Confirm'
-        self.rect = Rect(pos[0], pos[1], 60,12)
+        self.rect = pygame.Rect(pos[0], pos[1], 60,12)
         self.image = EasySurface(self.rect.size)
         self.draw()
 
@@ -142,15 +142,16 @@ class TradeTakeButton(CardAddButton):
 
 #------------------------------------------------------------------------------
 class TradeDisplay(EasySprite):
-    def __init__(self):
+    def __init__(self, spriteGroup):
         EasySprite.__init__(self)
         events.registerListener(self)
-        hudGroup.add(self)
+        self.spriteGroup = spriteGroup
+        self.spriteGroup.add(self)
         self.image = EasySurface( (380,180) )
         self.rect = self.image.get_rect()
 
         # TODO: i'm not really liking these collections living here. I should
-        # probably just switch to inspecting humanPlayer.proposal
+        # probably just switch to inspecting human Player's .proposal
         # {cardClass: [card1, card2, ...], ...}
         self._cardsToGive = {}
         # {cardClass1: 3, cardClass2: 1, ...}
@@ -204,10 +205,9 @@ class TradeDisplay(EasySprite):
         cardClassesToGive = {}
         for cardClass, cardList in self._cardsToGive.items():
             cardClassesToGive[cardClass] = len(cardList)
-        print 'GUI propose', humanPlayer
         print 'to give', cardClassesToGive
         print 'to take', self._cardClassesToTake
-        events.post('ProposeTrade', humanPlayer,
+        events.post('ProposeTrade', catan.game.state.activePlayer,
                     cardClassesToGive, self._cardClassesToTake)
 
     #----------------------------------------------------------------------
@@ -220,7 +220,7 @@ class TradeDisplay(EasySprite):
         newCardClassesToTake = defaultdict(lambda:0)
         # TODO: asDict returns a dict of class=>list items because doing
         # dict(group_cards(...)) makes all the items empty for some reason
-        cardDict = group_cards(humanPlayer.cards, asDict=True)
+        cardDict = group_cards(catan.game.state.activePlayer.cards, asDict=True)
         print 'togive', toGive
         print 'totake', toTake
         print cardDict
@@ -347,7 +347,7 @@ class TradeDisplay(EasySprite):
             self.takeButtons[cls] = TradeTakeButton(self, takePos, cls)
 
             givenCards = self._cardsToGive.get(cls, [])
-            group = [card for card in humanPlayer.cards
+            group = [card for card in catan.game.state.activePlayer.cards
                      if isinstance(card, cls)
                      and card not in givenCards]
 
@@ -357,7 +357,7 @@ class TradeDisplay(EasySprite):
     #----------------------------------------------------------------------
     def drawOpponents(self):
         opponents = catan.game.players[:]
-        opponents.remove(humanPlayer)
+        opponents.remove(catan.game.state.activePlayer)
         padX, padY = 15, 5
         for i, opponent in enumerate(opponents):
             # draw the opponent's identifier
@@ -414,7 +414,7 @@ class TradeDisplay(EasySprite):
     #----------------------------------------------------------------------
     def drawMaritime(self):
         padX, padY = 215, 5
-        for i, port in enumerate(humanPlayer.ports):
+        for i, port in enumerate(catan.game.state.activePlayer.ports):
             portCardClass, portAmt = port
             x = padX + 60*i
             y = padY
@@ -426,7 +426,7 @@ class TradeDisplay(EasySprite):
 
             playerOffer = []
             # if the player has offered some cards take the first group of 4
-            cardGroups = group_cards(humanPlayer.offer)
+            cardGroups = group_cards(catan.game.state.activePlayer.offer)
             for cls, group in cardGroups:
                 group = list(group)
                 if len(group) >= portAmt:
@@ -434,7 +434,7 @@ class TradeDisplay(EasySprite):
                     playerOffer = group[:portAmt]
             # if the player has cards in their hand, take the first group of 4
             if not playerOffer:
-                cardGroups = group_cards(humanPlayer.cards)
+                cardGroups = group_cards(catan.game.state.activePlayer.cards)
                 for cls, group in cardGroups:
                     group = list(group)
                     if len(group) >= portAmt:
@@ -454,12 +454,12 @@ class TradeDisplay(EasySprite):
             xoffset = x + classes.index(playerOfferClass)*8
             draw_cards(playerOffer, self.image, xoffset, y+5, 0,0, number=True)
 
-            if not humanPlayer.wants:
+            if not catan.game.state.activePlayer.wants:
                 cButton.hidden = True
                 continue
 
             traderOffer = []
-            for cls, howMany in humanPlayer.wants.items():
+            for cls, howMany in catan.game.state.activePlayer.wants.items():
                 if howMany:
                     traderOfferClass = cls
                     traderOffer = [cls()]
@@ -511,7 +511,7 @@ class TradeDisplay(EasySprite):
 
     #----------------------------------------------------------------------
     def onHideTrade(self):
-        hudGroup.remove(self)
+        self.spriteGroup.remove(self)
         events.unregisterListener(self)
         self.giveButtons = None
         self.takeButtons = None

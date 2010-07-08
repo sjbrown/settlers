@@ -226,7 +226,7 @@ class CardAddButton(EasySprite):
 
     #----------------------------------------------------------------------
     def cardSubset(self):
-        return set([card for card in humanPlayer.cards
+        return set([card for card in catan.game.state.activePlayer.cards
                     if isinstance(card, self.cardClass)])
 
 #------------------------------------------------------------------------------

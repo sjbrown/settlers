@@ -9,6 +9,6 @@ for my Writing Games Tutorial ( http://ezide.com/games/writing-games.html )
 Screenshots here:
 http://picasaweb.google.com/sjbrownPicasa/CatanProgress
 
-.. image:: http://picasaweb.google.com/lh/photo/ebNkDlJHh31SreUtOxAtnvEWhO8IooGhdgjBfNiz7oI?feat=directlink
+.. image:: http://lh3.ggpht.com/_iIIxyQ__oX8/TC40aSqXcmI/AAAAAAAACI0/6XfNBJPGkmQ/s512/catan_maritime.png
 
 

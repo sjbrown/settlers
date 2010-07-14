@@ -1033,7 +1033,9 @@ class PygameView:
 
     #----------------------------------------------------------------------
     def onShowTrade(self):
-        tdisplay = TradeDisplay(hudGroup)
+        tdisplay = TradeDisplay()
+        # tdisplay will kill itself on the HideTrade event
+        tdisplay.add(hudGroup)
         tdisplay.center = self.window.get_rect().center
 
     #----------------------------------------------------------------------

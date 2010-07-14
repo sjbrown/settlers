@@ -959,20 +959,6 @@ class Player(object):
         if recipient == self:
             self.cards += cards
 
-    def onConfirmProposal(self, player, opponent, playerCards, opponentCards):
-        if self == player:
-            for card in playerCards:
-                self.cards.remove(card)
-            for card in opponentCards:
-                self.cards.append(card)
-        elif self == opponent:
-            for card in playerCards:
-                self.cards.append(card)
-            for card in opponentCards:
-                self.cards.remove(card)
-        self.offer = []
-        self.wants = []
-
     def onMaritimeTrade(self, player, playerCards, portCards):
         if self == player:
             for card in playerCards:
@@ -1088,6 +1074,18 @@ class HumanPlayer(Player):
         if takeCardClasses != []:
             print 'fail confirm'
             return
+        # do the trade logic HERE.
+        # Otherwise you can get multiple request events at once and bork things
+        for card in self.offer:
+            self.cards.remove(card)
+            opponent.cards.append(card)
+        for card in opponent.offer:
+            opponent.cards.remove(card)
+            self.cards.append(card)
+        self.offer = []
+        self.wants = []
+        opponent.offer = []
+        opponent.wants = []
         events.post('ConfirmProposal', self, opponent,
                     self.offer, opponent.offer)
 

@@ -142,11 +142,12 @@ class TradeTakeButton(CardAddButton):
 
 #------------------------------------------------------------------------------
 class TradeDisplay(EasySprite):
-    def __init__(self, spriteGroup):
+    singleton_guard = False
+    def __init__(self):
+        assert TradeDisplay.singleton_guard == False, 'TODO: make this be safely ignored, not blow up'
+        TradeDisplay.singleton_guard = True
         EasySprite.__init__(self)
         events.registerListener(self)
-        self.spriteGroup = spriteGroup
-        self.spriteGroup.add(self)
         self.image = EasySurface( (380,180) )
         self.rect = self.image.get_rect()
 
@@ -511,11 +512,11 @@ class TradeDisplay(EasySprite):
 
     #----------------------------------------------------------------------
     def onHideTrade(self):
-        self.spriteGroup.remove(self)
+        TradeDisplay.singleton_guard = False
+        self.kill()
         events.unregisterListener(self)
         self.giveButtons = None
         self.takeButtons = None
-        self.kill()
 
     #----------------------------------------------------------------------
     def onMouseMotion(self, pos, buttons):

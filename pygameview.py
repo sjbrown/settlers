@@ -16,6 +16,8 @@ from mapmodel import walk_corners_along_tile
 from pygame_utils import *
 from pygame_trade import TradeDisplay, TradeButton
 from pygame_choosevictim import ChooseVictimDisplay
+from pygame_yearofplenty import ChooseTwoCardsDisplay
+from pygame_monopoly import MonopolyDisplay
 
 tileGroup = pygame.sprite.RenderUpdates()
 tileModelToSprite = {}
@@ -1007,6 +1009,9 @@ class PygameView:
 
     #----------------------------------------------------------------------
     def onShowRobberCursor(self, player):
+        if player != humanPlayer:
+            # show some alert that the active player is placing the robber
+            return
         self.showRobberCursor = True
         for tSprite in tileGroup:
             tSprite.hintlighted = True
@@ -1022,6 +1027,9 @@ class PygameView:
 
     #----------------------------------------------------------------------
     def onShowChooseVictim(self, player, opponents):
+        if player != humanPlayer:
+            # show some alert that the active player is choosing a victim
+            return
         cdisplay = ChooseVictimDisplay(player, opponents)
         # cdisplay will kill itself on the RobRequest event
         cdisplay.add(hudGroup)
@@ -1029,12 +1037,16 @@ class PygameView:
 
     #----------------------------------------------------------------------
     def onShowDiscard(self, player):
+        if player != humanPlayer:
+            # show some alert that the active player is discarding
+            return
         ddisplay = DiscardDisplay(player)
+        ddisplay.add(hudGroup)
         ddisplay.center = self.window.get_rect().center
 
     #----------------------------------------------------------------------
     def onShowTrade(self):
-        tdisplay = TradeDisplay()
+        tdisplay = TradeDisplay(humanPlayer)
         # tdisplay will kill itself on the HideTrade event
         tdisplay.add(hudGroup)
         tdisplay.center = self.window.get_rect().center
@@ -1042,15 +1054,19 @@ class PygameView:
     #----------------------------------------------------------------------
     def onShowPlayerChooseTwoCards(self, player):
         if player != humanPlayer:
+            # show some alert that the active player is choosing 2 cards
             return
         cdisplay = ChooseTwoCardsDisplay(player)
+        cdisplay.add(hudGroup)
         cdisplay.center = self.window.get_rect().center
 
     #----------------------------------------------------------------------
     def onShowMonopoly(self, player):
         if player != humanPlayer:
+            # show some alert that the active player is playing Monopoly
             return
         mdisplay = MonopolyDisplay(player)
+        mdisplay.add(hudGroup)
         mdisplay.center = self.window.get_rect().center
 
 
@@ -1175,7 +1191,6 @@ class DiscardDisplay(EasySprite):
         self.dButton = DiscardTextButton((200,60))
         self.drawButtons()
 
-        hudGroup.add(self)
         self.dirty = True
 
     #----------------------------------------------------------------------
@@ -1264,270 +1279,12 @@ class DiscardDisplay(EasySprite):
         for button in self.addButtons.values() + self.removeButtons.values():
             #print 'button', button, button.rect
             if button.rect.collidepoint(innerPos):
-                #print 'button %s sees mouse inner' % button
+                print 'button %s sees mouse inner' % button
                 button.click()
         if self.dButton.rect.collidepoint(innerPos):
             if self.dButton.hintlighted:
                 events.post('DiscardRequest', self.player, self._discards)
 
-#------------------------------------------------------------------------------
-class ChooseAddButton(CardAddButton):
-    #def __init__(self, parent, pos, cardClass, symbol='+'):
-    def click(self):
-        self.parent.addChoose(self.cardClass)
-
-#------------------------------------------------------------------------------
-class ChooseRemoveButton(CardRemoveButton):
-    def click(self):
-        self.parent.removeChoose(self.cardClass)
-
-#------------------------------------------------------------------------------
-class ChooseTextButton(TextButton):
-    def __init__(self, pos):
-        EasySprite.__init__(self)
-        Highlightable.__init__(self)
-        events.registerListener(self)
-        self.text = 'CHOOSE'
-        self.rect = Rect(pos[0], pos[1], 70,15)
-        self.image = EasySurface(self.rect.size)
-        self.draw()
-
-#------------------------------------------------------------------------------
-class ChooseTwoCardsDisplay(EasySprite):
-    def __init__(self, player):
-        EasySprite.__init__(self)
-        events.registerListener(self)
-        self.image = EasySurface( (280,80) )
-        self.rect = self.image.get_rect()
-
-        self.player = player
-
-        self._chosen = []
-
-        self.addButtons = {}
-        self.removeButtons = {}
-
-        self.drawBg()
-        self.drawCards()
-
-        self.dButton = ChooseTextButton((200,60))
-        self.drawButtons()
-
-        hudGroup.add(self)
-        self.dirty = True
-
-    #----------------------------------------------------------------------
-    def addChoose(self, cardClass):
-        if len(self._chosen) < 2:
-            self._chosen.append(cardClass)
-            self.dirty = True
-
-    #----------------------------------------------------------------------
-    def removeChoose(self, cardClass):
-        if self._chosen:
-            self._chosen.remove(cardClass)
-            self.dirty = True
-
-    #----------------------------------------------------------------------
-    def drawBg(self):
-        self.image.fill( (0,0,20) )
-        r = self.rect.move(0,0)
-        r.topleft = 0,0
-        pygame.draw.rect(self.image, blue, r, 8)
-        pygame.draw.rect(self.image, (200,200,255), r, 1)
-
-    #----------------------------------------------------------------------
-    def drawCards(self):
-        classes = [catan.Stone, catan.Brick, catan.Grain, catan.Sheep,
-                   catan.Wood]
-        x = 10
-        y = 20
-        for cls in classes:
-            addPos = vect_add((x,y), (0, -25))
-            self.addButtons[cls] = ChooseAddButton(self, addPos, cls)
-
-            removePos = vect_add((x,y), (0, 30))
-            self.removeButtons[cls] = ChooseRemoveButton(self, removePos, cls)
-
-            group = [cls()]
-            draw_cards(group, self.image, x, y, 2, 3)
-
-            x += 30
-
-        if self._chosen:
-            x = 210
-            y = 40
-            group = [cardClass() for cardClass in self._chosen]
-            draw_cards(group, self.image, x, y, 6, 0)
-           
-
-    #----------------------------------------------------------------------
-    def drawButtons(self):
-        self.dButton.update()
-        self.image.blit(self.dButton.image, self.dButton.rect)
-        for button in self.addButtons.values():
-            self.image.blit(button.image, button.rect)
-        for button in self.removeButtons.values():
-            self.image.blit(button.image, button.rect)
-
-    #----------------------------------------------------------------------
-    def update(self):
-        if not self.dirty:
-            return
-
-        if len(self._chosen) == 2:
-            self.dButton.hintlighted = True
-        else:
-            self.dButton.hintlighted = False
-
-        self.drawBg()
-        self.drawCards()
-        self.drawButtons()
-        self.dirty = False
-
-    #----------------------------------------------------------------------
-    def onChooseTwoCards(self, player, cards):
-        if player == self.player:
-            hudGroup.remove(self)
-            events.unregisterListener(self)
-            self.addButtons = None
-            self.removeButtons = None
-            self.kill()
-
-    #----------------------------------------------------------------------
-    def onMouseLeftDown(self, pos):
-        if not self.rect.collidepoint(pos):
-            return
-        self.dirty = True
-        innerPos = vect_diff(pos, self.topleft)
-        for button in self.addButtons.values() + self.removeButtons.values():
-            #print 'button', button, button.rect
-            if button.rect.collidepoint(innerPos):
-                #print 'button %s sees mouse inner' % button
-                button.click()
-        if self.dButton.rect.collidepoint(innerPos):
-            if self.dButton.hintlighted:
-                events.post('ChooseTwoCardsRequest', self.player, self._chosen)
-
-
-#------------------------------------------------------------------------------
-class MonopolyAddButton(CardAddButton):
-    def click(self):
-        self.parent.addMonopoly(self.cardClass)
-
-#------------------------------------------------------------------------------
-class MonopolyTextButton(TextButton):
-    def __init__(self, pos):
-        EasySprite.__init__(self)
-        Highlightable.__init__(self)
-        events.registerListener(self)
-        self.text = 'MONOPOLIZE'
-        self.rect = Rect(pos[0], pos[1], 80,15)
-        self.image = EasySurface(self.rect.size)
-        self.draw()
-
-#------------------------------------------------------------------------------
-class MonopolyDisplay(EasySprite):
-    def __init__(self, player):
-        EasySprite.__init__(self)
-        events.registerListener(self)
-        self.image = EasySurface( (280,80) )
-        self.rect = self.image.get_rect()
-
-        self.player = player
-
-        self._chosen = None
-
-        self.addButtons = {}
-
-        self.drawBg()
-        self.drawCards()
-
-        self.dButton = MonopolyTextButton((200,60))
-        self.drawButtons()
-
-        hudGroup.add(self)
-        self.dirty = True
-
-    #----------------------------------------------------------------------
-    def addMonopoly(self, cardClass):
-        self._chosen = cardClass
-        self.dirty = True
-
-    #----------------------------------------------------------------------
-    def drawBg(self):
-        self.image.fill( (0,0,20) )
-        r = self.rect.move(0,0)
-        r.topleft = 0,0
-        pygame.draw.rect(self.image, blue, r, 8)
-        pygame.draw.rect(self.image, (200,200,255), r, 1)
-
-    #----------------------------------------------------------------------
-    def drawCards(self):
-        classes = [catan.Stone, catan.Brick, catan.Grain, catan.Sheep,
-                   catan.Wood]
-        x = 10
-        y = 20
-        for cls in classes:
-            addPos = vect_add((x,y), (0, -25))
-            self.addButtons[cls] = MonopolyAddButton(self, addPos, cls)
-
-            group = [cls()]
-            draw_cards(group, self.image, x, y, 2, 3)
-
-            x += 30
-
-        if self._chosen:
-            x = 210
-            y = 40
-            group = [self._chosen()]
-            draw_cards(group, self.image, x, y, 6, 0)
-           
-
-    #----------------------------------------------------------------------
-    def drawButtons(self):
-        self.dButton.update()
-        self.image.blit(self.dButton.image, self.dButton.rect)
-        for button in self.addButtons.values():
-            self.image.blit(button.image, button.rect)
-
-    #----------------------------------------------------------------------
-    def update(self):
-        if not self.dirty:
-            return
-
-        if self._chosen:
-            self.dButton.hintlighted = True
-        else:
-            self.dButton.hintlighted = False
-
-        self.drawBg()
-        self.drawCards()
-        self.drawButtons()
-        self.dirty = False
-
-    #----------------------------------------------------------------------
-    def onMonopoly(self, player, cardClass):
-        if player == self.player:
-            hudGroup.remove(self)
-            events.unregisterListener(self)
-            self.addButtons = None
-            self.removeButtons = None
-            self.kill()
-
-    #----------------------------------------------------------------------
-    def onMouseLeftDown(self, pos):
-        if not self.rect.collidepoint(pos):
-            return
-        self.dirty = True
-        innerPos = vect_diff(pos, self.topleft)
-        for button in self.addButtons.values():
-            if button.rect.collidepoint(innerPos):
-                button.click()
-        if self.dButton.rect.collidepoint(innerPos):
-            if self.dButton.hintlighted:
-                events.post('MonopolyRequest', self.player, self._chosen)
-            
 
 #------------------------------------------------------------------------------
 class PlayerDisplay(EasySprite):

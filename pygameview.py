@@ -15,6 +15,7 @@ import textrect
 from mapmodel import walk_corners_along_tile
 from pygame_utils import *
 from pygame_trade import TradeDisplay, TradeButton
+from pygame_discard import DiscardDisplay
 from pygame_choosevictim import ChooseVictimDisplay
 from pygame_yearofplenty import ChooseTwoCardsDisplay
 from pygame_monopoly import MonopolyDisplay
@@ -1298,9 +1299,10 @@ def main():
     kbController = KeyboardController()
     pygameView = PygameView()
     catan.init()
-    events.post('PlayerJoin', catan.CPUPlayer(1))
-    events.post('PlayerJoin', catan.CPUPlayer(2))
-    events.post('PlayerJoin', catan.CPUPlayer(3))
+    from cpu_player_minimal import CPUPlayer
+    events.post('PlayerJoin', CPUPlayer(1))
+    events.post('PlayerJoin', CPUPlayer(2))
+    events.post('PlayerJoin', CPUPlayer(3))
     humanPlayer = catan.HumanPlayer(4)
     events.post('PlayerJoin', humanPlayer)
     spinner.run()

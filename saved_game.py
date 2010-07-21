@@ -3,6 +3,7 @@
 import os
 import re
 import catan
+import cpu_player_minimal
 import mapmodel
 from pprint import pformat
 import network # Importing will mix-in the classes
@@ -114,6 +115,8 @@ def deserialize(loadReg, srcReg, dicts, objID, clsModule, clsName):
         cls = getattr(mapmodel, clsName)
     elif clsModule == 'catan':
         cls = getattr(catan, clsName)
+    elif clsModule == 'cpu_player_minimal':
+        cls = getattr(cpu_player_minimal, clsName)
     else:
         raise Exception("Fail")
 

@@ -1,5 +1,6 @@
 
 import events
+import catan
 from catan import *
 from mapmodel import Tile, Edge, Corner
 from twisted.spread import pb
@@ -345,16 +346,16 @@ class CopyablePip(Serializable):
 MixInClass( Pip, CopyablePip )
 
 #------------------------------------------------------------------------------
-class CopyablePort(Serializable):
-    def getStateToCopy(self, registry):
-        d = {'tuple': serialize(list(self), registry)}
-        return d
-    def setCopyableState(self, stateDict, registry):
-        for tID, tdict in stateDict['tuple']:
+#class CopyablePort(Serializable):
+    #def getStateToCopy(self, registry):
+        #d = {'tuple': serialize(list(self), registry)}
+        #return d
+    #def setCopyableState(self, stateDict, registry):
+        #for tID, tdict in stateDict['tuple']:
 
 #------------------------------------------------------------------------------
 class CopyableBoard(Serializable):
-    copyworthy_attrs = ['robber', 'ports']
+    copyworthy_attrs = ['robber']
     registry_attrs = ['robber']
 
     def getStateToCopy(self, registry):
@@ -375,6 +376,12 @@ class CopyableBoard(Serializable):
         d['edgesToTiles'] = {}
         for e, tlist in mapmodel.edgesToTiles.items():
             d['edgesToTiles'][id(e)] = [id(t)for t in tlist]
+        d['ports'] = []
+        for p in self.ports:
+            p2 = list(p)
+            if p[0] != None:
+                p2[0] = p[0].__name__
+            d['ports'].append(p2)
         return d
 
     def setCopyableState(self, stateDict, registry):
@@ -429,6 +436,14 @@ class CopyableBoard(Serializable):
                 tile = registry[tID]
                 e.addTile(tile, recurse=False)
                 tile.addEdge(e)
+
+        self.ports = []
+        for cardClassName, num in stateDict['ports']:
+            if cardClassName == None:
+                cardClass = None
+            else:
+                cardClass = getattr(catan, cardClassName)
+            self.ports.append( catan.Port((cardClass, num)) )
 
         self.populateGraphicalPositions()
         self.layOutPorts()

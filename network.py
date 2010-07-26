@@ -346,14 +346,6 @@ class CopyablePip(Serializable):
 MixInClass( Pip, CopyablePip )
 
 #------------------------------------------------------------------------------
-#class CopyablePort(Serializable):
-    #def getStateToCopy(self, registry):
-        #d = {'tuple': serialize(list(self), registry)}
-        #return d
-    #def setCopyableState(self, stateDict, registry):
-        #for tID, tdict in stateDict['tuple']:
-
-#------------------------------------------------------------------------------
 class CopyableBoard(Serializable):
     copyworthy_attrs = ['robber']
     registry_attrs = ['robber']
@@ -402,11 +394,8 @@ class CopyableBoard(Serializable):
 
         for tID, tdict in stateDict['allTiles']:
             t = registry[tID]
-            print 'Setting tile state', t, tdict
             neededObjIDs += t.setCopyableState(tdict, registry)
-            #assert t.name == tdict['name']
             if stateDict['centerTile'] == t.name:
-                #t.isCenter = True
                 mapmodel.centerTile = t
 
         for cID, cdict in stateDict['allCorners']:
@@ -437,20 +426,25 @@ class CopyableBoard(Serializable):
                 e.addTile(tile, recurse=False)
                 tile.addEdge(e)
 
+        return neededObjIDs +\
+               Serializable.setCopyableState(self, stateDict, registry)
+
+    def unserialize_ports(self, stateDict, registry):
+        neededObjIDs = []
         self.ports = []
         for cardClassName, num in stateDict['ports']:
             if cardClassName == None:
                 cardClass = None
             else:
                 cardClass = getattr(catan, cardClassName)
-            self.ports.append( catan.Port((cardClass, num)) )
+            port = catan.Port((cardClass, num))
+            self.ports.append(port)
+        return neededObjIDs
 
+    def postUnserialize(self):
         self.populateGraphicalPositions()
         self.layOutPorts()
         events.registerListener(self)
-
-        return neededObjIDs +\
-               Serializable.setCopyableState(self, stateDict, registry)
 
 MixInClass( Board, CopyableBoard )
 

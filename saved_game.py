@@ -52,9 +52,7 @@ def save(fname='./'+SAVE_NAME+'.py'):
     dicts['game'] = saveObj(catan.game)
     dicts['gameID'] = {0: id(catan.game)}
     dicts[id(catan.game)] = dicts['game']
-    #dicts['state'] = saveObj(catan.game.state)
     dicts[id(catan.game.state)] = saveObj(catan.game.state)
-    #dicts['board'] = saveObj(catan.game.board)
     dicts[id(catan.game.board)] = saveObj(catan.game.board)
     dicts[id(catan.game.board.robber)] = saveObj(catan.game.board.robber)
     itemCounter = 0
@@ -140,8 +138,6 @@ def deserialize(loadReg, srcReg, dicts, objID, clsModule, clsName):
 def load(modname=LOAD_NAME):
     loadReg = {}
     module = __import__(modname, globals())
-    #print module.reg
-    #print module.dicts
     srcReg = module.reg
 
     # Thaw out the board first because it contains the allTiles, allEdges,

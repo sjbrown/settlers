@@ -425,22 +425,20 @@ class TradeDisplay(EasySprite):
             txtImg = font_render(identifier, color=blue)
             self.image.blit(txtImg, (x, y))
 
-            playerOffer = []
-            # if the player has offered some cards take the first group of 4
-            cardGroups = group_cards(self.player.offer)
-            for cls, group in cardGroups:
-                group = list(group)
-                if len(group) >= portAmt:
-                    playerOfferClass = cls
-                    playerOffer = group[:portAmt]
-            # if the player has cards in their hand, take the first group of 4
-            if not playerOffer:
-                cardGroups = group_cards(self.player.cards)
+            def findPlayerOffer(cards):
+                cardGroups = group_cards(cards)
                 for cls, group in cardGroups:
+                    if portCardClass and cls != portCardClass:
+                        continue
                     group = list(group)
                     if len(group) >= portAmt:
-                        playerOfferClass = cls
-                        playerOffer = group[:portAmt]
+                        return group[:portAmt]
+                return []
+            # if player has offered some cards take the first group of "4"
+            playerOffer = findPlayerOffer(self.player.offer)
+            # if player has cards in their hand, take the first group of "4"
+            if not playerOffer:
+                playerOffer = findPlayerOffer(self.player.cards)
 
             # draw the trader's proposed trade
             cButton = self.maritimeConfirmButtons[i]
@@ -452,6 +450,7 @@ class TradeDisplay(EasySprite):
 
             classes = [catan.Stone, catan.Brick, catan.Grain, catan.Sheep,
                        catan.Wood]
+            playerOfferClass = playerOffer[0].__class__
             xoffset = x + classes.index(playerOfferClass)*8
             draw_cards(playerOffer, self.image, xoffset, y+5, 0,0, number=True)
 

@@ -87,3 +87,44 @@ class CPUPlayer(Player):
                 return
             self.makeProposal(toGive, toTake)
 
+'''
+Here is a list of methods a Player class can choose to implement
+    def onPlayerJoin(self, player):
+    def onStageChange(self, newStage):
+    def onPlayerSet(self, newPlayer):
+    def onDiceRoll(self, d1, d2):
+    def onDiscard(self, player):
+    def onRobberPlaced(self, robber):
+    def onRob(self, thief, victim, card):
+
+    def onHarvest(self, cards, sourceTile, recipient):
+    def onCardHarvestOver(self):
+
+    def onPlayerPlacing(self, player, item):
+    def onItemPlaced(self, item):
+    def onPlayerDrewVictoryCard(self, player, card):
+
+    def onProposeTrade(self, player, toGive, toTake):
+    def onMaritimeTrade(self, player, playerCards, portCards):
+
+    def onMonopolyGive(self, donor, receiver, cards):
+    def onMonopoly(self, player, cardClass):
+
+Here is a list of events that a Player class can send:
+    TurnFinishRequest(player)
+    DiceRollRequest(player)
+    DiscardRequest(player, discards)
+    RobberPlaceRequest(player, tile)
+    RobRequest(thief, victim)
+    SkipRobRequest(thief) # when the robber is not adjacent to an opponent
+    BuyRequest(player, itemClass)
+    ClickCorner(corner)
+    ClickEdge(edge)
+
+    ConfirmProposalRequest(opponent, proposal)
+    MaritimeTradeRequest(proposal)
+
+    PlayVictoryCardRequest(player, victoryCardClass)
+    ChooseTwoCardsRequest(player, cardClasses) # Year of Plenty
+    MonopolyRequest(player, cardClass)
+'''

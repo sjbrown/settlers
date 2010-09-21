@@ -10,11 +10,14 @@ import pygame.sprite
 from pygame.locals import * #the KeyboardController needs these
 
 import events
-from pygame_utils import *
+#from pygame_utils import *
 
 tileGroup = pygame.sprite.RenderUpdates()
 tileModelToSprite = {}
 hudGroup = pygame.sprite.RenderUpdates()
+
+white = (255,255,255)
+black = (0,0,0)
 
 #------------------------------------------------------------------------------
 class CPUSpinnerController:
@@ -43,7 +46,9 @@ class FileWatcherController:
 
     def onTick(self, *args):
         #Handle Input Events
+        print 'tick'
         mtime = os.path.getmtime(self.fpath)
+        print 'new mtime', mtime
         if mtime != self.lastMTime:
             events.post('FileChanged', self.fpath)
         self.lastMTime = mtime
@@ -102,7 +107,7 @@ class PygameView:
         pygame.display.set_caption( 'TITLE HERE' )
 
         self.framesPerSec = 10
-        self.countDown = 1.0/self.framesPerSec
+        self.countdown = 1.0/self.framesPerSec
 
         self.background = pygame.Surface( self.window.get_size() )
         self.background.fill(black)
@@ -117,23 +122,30 @@ class PygameView:
         pass
 
     #----------------------------------------------------------------------
-    def showMap(self, board):
+    def showMap(self):
+        print 'showing map'
         # clear the screen first
         self.background.fill(black)
         self.window.blit( self.background, (0,0) )
         pygame.display.flip()
 
-        hexes = []
-        execfile('hexagons.out.py')
+        #hexes = []
+        fp = open('hexagons.out.py')
+        hexes = eval(fp.read())
+        fp.close()
+        #execfile('hexagons.out.py')
 
         center = self.window.get_rect().center
+        aaline = pygame.draw.aaline
+        white = (255,255,255)
 
-        for h in hexes:
-            tSprite = Tile(t)
-            x = 300 + tSprite.tile.graphicalPosition[0]*75
-            # minus because pygame uses less = up in the y dimension
-            y = 300 - tSprite.tile.graphicalPosition[1]*55
-            tSprite.rect.move_ip(x,y)
+        for hTup in hexes:
+            start = hTup[0]
+            for delta in hTup[1:]:
+                p1 = start
+                p2 = [start[0]+delta[0], start[1]+delta[1]]
+                aaline(self.background, white, p1, p2)
+                start = p2[:]
             
     #----------------------------------------------------------------------
     def drawCursor(self):
@@ -150,16 +162,16 @@ class PygameView:
     def draw(self):
         self.window.blit( self.background, (0,0) )
 
-        for tSprite in tileGroup:
-            tSprite.update()
-        dirtyRects = tileGroup.draw( self.window )
+        #for tSprite in tileGroup:
+            #tSprite.update()
+        #dirtyRects = tileGroup.draw( self.window )
 
         for hudSprite in hudGroup:
             #print 'calling update on ', hudSprite
             hudSprite.update()
         dirtyRects = hudGroup.draw( self.window )
 
-        dirtyRects += self.drawCursor()
+        #dirtyRects += self.drawCursor()
 
         pygame.display.flip()
 
@@ -171,7 +183,7 @@ class PygameView:
     def onTick(self, delta):
         self.countdown -= delta
         if self.countdown <= 0:
-            self.countDown = 1.0/self.framesPerSec
+            self.countdown = 1.0/self.framesPerSec
             self.draw()
 
 #------------------------------------------------------------------------------

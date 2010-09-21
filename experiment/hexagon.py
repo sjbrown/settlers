@@ -117,6 +117,12 @@ class Hex(object):
     deltaGen = property(getDeltaGenerator)
 
     # -------------------------------------------------------------------------
+    def topy(self):
+        s = [(d[0],d[1]) for d in self.deltaGen]
+        s = '%s\n' % s
+        return s
+
+    # -------------------------------------------------------------------------
     def tosvg(self):
         s = ''
         for x,y in self.deltaGen:
@@ -214,8 +220,8 @@ def makeColorInHexadecimal_3(h):
     print numpart
     return ('% 2s' % numpart).replace(' ', '0')
 
-def sin_intensity(h):
-    dist = distance(h.center, (350,260))
+def sin_intensity(pos):
+    dist = distance(pos, (350,260))
     dist /= 20.0
     between0and1 = (1+sin(dist))/2.0
     return between0and1
@@ -253,13 +259,14 @@ def draw():
         #s += h.tosvg()
     for h in hexgrid(30,50):
         #s += h.tosvg()
-        bzone = sin_intensity(h)
-        numInternalHexes = int(bzone * 5)
-        print 'numInternalHexes', numInternalHexes
+        bzone = sin_intensity(h.center)
+        #numInternalHexes = int(bzone * 5)
+        #print 'numInternalHexes', numInternalHexes
         hi = Hex()
-        hi.edgesize = h.edgesize - 2*(numInternalHexes)
+        #hi.edgesize = h.edgesize - 2*(numInternalHexes)
+        hi.edgesize = h.edgesize - 2*(1+bzone)
         hi.center = h.center
-        s += hi.tosvg()
+        yield hi
         #if numInternalHexes == 0:
             #s += h.tosvg()
             #
@@ -269,15 +276,27 @@ def draw():
             #hi.center = h.center
             #s += hi.tosvg()
 
-    return s
+def writePy():
+    fname = 'hexagons.out.py'
+    if os.path.exists(fname):
+        tstamp = str(time.time())
+        bakFname = '/tmp/hexagons.out.py.'+tstamp
+        shutil.copy(fname, bakFname)
 
-fname = '/a/hexagons.svg'
-if os.path.exists(fname):
-    tstamp = str(time.time())
-    bakFname = '/tmp/hexagons.svg.'+tstamp
-    shutil.copy(fname, bakFname)
-fp = file(fname, 'w')
-fp.write('''\
+    meat = ','.join([h.topy() for h in draw()])
+    fp = file(fname, 'w')
+    fp.write('[' + meat + ']\n')
+    fp.close()
+
+def writeSVG():
+    fname = 'hexagons.svg'
+    if os.path.exists(fname):
+        tstamp = str(time.time())
+        bakFname = '/tmp/hexagons.svg.'+tstamp
+        shutil.copy(fname, bakFname)
+    fp = file(fname, 'w')
+    meat = ''.join([h.tosvg() for h in draw()])
+    fp.write('''\
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
@@ -335,10 +354,13 @@ fp.write('''\
        id="mainhex" />
 
     <!-- ======================================== -->
-    ''' + draw() + '''
+    ''' + meat + '''
     <!-- ======================================== -->
   </g>
 
 </svg>
 ''')
-fp.close()
+    fp.close()
+
+if __name__ == '__main__':
+    writeSVG()

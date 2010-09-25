@@ -44,6 +44,9 @@ class Hex(object):
         self.pathname = 'genpath' + str(svgID)
         svgID += 1
 
+    def __str__(self):
+        return '<Hex %s %s>' % (self.xy, self.edgesize)
+
     # -------------------------------------------------------------------------
     def getWidth(self):
         r'''
@@ -79,6 +82,25 @@ class Hex(object):
         return self.edgesize * math.sin((1/3.0)*math.pi)
     centerToEdgeNormal = property(getCenterToEdgeNormal)
     hh = centerToEdgeNormal # "hh" = "half height"
+
+    # -------------------------------------------------------------------------
+    def getCenterToCorner(self):
+        r'''
+               --------
+              /    |   \
+             /    A|    \
+            /      |     \
+           /       |......\
+           \          B   /
+            \            /
+             \          /
+              \        /
+               --------
+        center to corner = B
+        '''
+        return self.edgesize * math.cos((1/3.0)*math.pi) + (self.edgesize/2.0)
+    centerToCorner = property(getCenterToCorner)
+    hw = centerToCorner # "hw" = "half width"
 
     # -------------------------------------------------------------------------
     def getCenter(self):
@@ -157,6 +179,85 @@ def hexgrid(rows=5,cols=5):
             h.center = (j*1.5*h.edgesize, 2*i*h.hh + yAdjust)
             yield h
 
+# -----------------------------------------------------------------------------
+def hexOnion(layers=1):
+    h = Hex()
+    yield h
+    for i in range(layers):
+        #d = (i+1) * 2 * h.hh
+        for j in range(0,(i+1)*6):
+            if i%2 and j%2:
+                d = ((i+1) * h.hw) + (i * h.edgesize)
+            else:
+                d = (i+1) * 2 * h.hh
+            dx = d * math.sin((j/((i+1)*3.0))*math.pi)
+            dy = d * math.cos((j/((i+1)*3.0))*math.pi)
+            dx = reasonable(dx)
+            dy = reasonable(dy)
+            h1 = Hex()
+            print 'moving %s by x%s y%s' % (h1, dx, dy)
+            h1.centerX = h.centerX + dx
+            h1.centerY = h.centerY + dy
+            print '%s' % h1
+            yield h1
+
+# -----------------------------------------------------------------------------
+def hexMega(layers=2):
+    h = Hex()
+    yield h
+    for i in range(layers):
+        #d = (i+1) * 2 * h.hh
+        for j in range(0,(i+1)*6):
+            if i%2 and j%2:
+                d = (i * 2 * h.edgesize) + (i*2 * h.edgesize)
+            else:
+                d = (i+1) * 2 * h.hh
+            dx = d * math.sin((j/((i+1)*3.0))*math.pi)
+            dy = d * math.cos((j/((i+1)*3.0))*math.pi)
+            dx = reasonable(dx)
+            dy = reasonable(dy)
+            h1 = Hex()
+            print 'moving %s by x%s y%s' % (h1, dx, dy)
+            h1.centerX = h.centerX + dx
+            h1.centerY = h.centerY + dy
+            print '%s' % h1
+            yield h1
+
+# -----------------------------------------------------------------------------
+def hexPlosion(layers=2):
+    h = Hex()
+    yield h
+    for i in range(layers):
+        d = (i+1) * 2 * h.hh
+        for j in range(0,(i+1)*6):
+            dx = d * math.sin((j/((i+1)*3.0))*math.pi)
+            dy = d * math.cos((j/((i+1)*3.0))*math.pi)
+            #dx = reasonable(dx)
+            #dy = reasonable(dy)
+            h1 = Hex()
+            print 'moving %s by x%s y%s' % (h1, dx, dy)
+            h1.centerX = h.centerX + dx
+            h1.centerY = h.centerY + dy
+            print '%s' % h1
+            yield h1
+
+# -----------------------------------------------------------------------------
+def hexFlower(layers=1):
+    h = Hex()
+    yield h
+    for i in range(layers):
+        d = (i+1) * 2 * h.hh
+        for j in range(6):
+            dx = d * math.cos((j/3.0)*math.pi)
+            dy = d * math.sin((j/3.0)*math.pi)
+            dx = reasonable(dx)
+            dy = reasonable(dy)
+            h1 = Hex()
+            print 'moving %s by x%s y%s' % (h1, dx, dy)
+            h1.centerX = h.centerX + dx
+            h1.centerY = h.centerY + dy
+            print '%s' % h1
+            yield h1
 
 # -----------------------------------------------------------------------------
 def distance(p1, p2):
@@ -238,7 +339,6 @@ def makeColorInHexadecimal_4(h):
 
 
 def draw():
-    s = ''
     #h = Hex((0,0))
     #h.center = (0,0)
     #s += h.tosvg()
@@ -257,16 +357,18 @@ def draw():
         #color = 'ffff' + blue
         #h.fillcolor = color
         #s += h.tosvg()
-    for h in hexgrid(30,50):
+    #for h in hexgrid(30,50):
+    return hexOnion(4)
+    #for h in hexFlower(2):
         #s += h.tosvg()
-        bzone = sin_intensity(h.center)
+        #bzone = sin_intensity(h.center)
         #numInternalHexes = int(bzone * 5)
         #print 'numInternalHexes', numInternalHexes
-        hi = Hex()
+        #hi = Hex()
         #hi.edgesize = h.edgesize - 2*(numInternalHexes)
-        hi.edgesize = h.edgesize - 2*(1+bzone)
-        hi.center = h.center
-        yield hi
+        #hi.edgesize = h.edgesize - 2*(1+bzone)
+        #hi.center = h.center
+        #yield hi
         #if numInternalHexes == 0:
             #s += h.tosvg()
             #

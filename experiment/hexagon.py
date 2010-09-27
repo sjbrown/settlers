@@ -30,7 +30,7 @@ svgID = 1
 # -----------------------------------------------------------------------------
 class Hex(object):
     edgesize = 42.5
-    def __init__(self, xy=(0,0), edgesize=None):
+    def __init__(self, xy=(0,0), center=None, edgesize=None):
         self.xy = xy
         if edgesize == None:
             self.edgesize = Hex.edgesize
@@ -43,6 +43,9 @@ class Hex(object):
         global svgID
         self.pathname = 'genpath' + str(svgID)
         svgID += 1
+        if center:
+            assert xy == (0,0)
+            self.center = center
 
     def __str__(self):
         return '<Hex %s %s>' % (self.xy, self.edgesize)
@@ -180,8 +183,8 @@ def hexgrid(rows=5,cols=5):
             yield h
 
 # -----------------------------------------------------------------------------
-def hexOnion(layers=1):
-    h = Hex()
+def hexOnion(layers=1, center=(0,0)):
+    h = Hex(center=center)
     yield h
     for i in range(layers):
         #d = (i+1) * 2 * h.hh
@@ -195,7 +198,7 @@ def hexOnion(layers=1):
             dx = reasonable(dx)
             dy = reasonable(dy)
             h1 = Hex()
-            print 'moving %s by x%s y%s' % (h1, dx, dy)
+            #print 'moving %s by x%s y%s' % (h1, dx, dy)
             h1.centerX = h.centerX + dx
             h1.centerY = h.centerY + dy
             print '%s' % h1
@@ -321,8 +324,9 @@ def makeColorInHexadecimal_3(h):
     print numpart
     return ('% 2s' % numpart).replace(' ', '0')
 
+SIN_ORIGIN = (350,260)
 def sin_intensity(pos):
-    dist = distance(pos, (350,260))
+    dist = distance(pos, SIN_ORIGIN)
     dist /= 20.0
     between0and1 = (1+sin(dist))/2.0
     return between0and1
@@ -358,7 +362,7 @@ def draw():
         #h.fillcolor = color
         #s += h.tosvg()
     #for h in hexgrid(30,50):
-    return hexOnion(4)
+    return hexOnion(2)
     #for h in hexFlower(2):
         #s += h.tosvg()
         #bzone = sin_intensity(h.center)

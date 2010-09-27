@@ -4,6 +4,9 @@ import os
 import sys
 import time
 import string
+from math import cos, sin, pi
+
+import hexagon
 
 import pygame
 import pygame.sprite
@@ -46,9 +49,7 @@ class FileWatcherController:
 
     def onTick(self, *args):
         #Handle Input Events
-        print 'tick'
         mtime = os.path.getmtime(self.fpath)
-        print 'new mtime', mtime
         if mtime != self.lastMTime:
             events.post('FileChanged', self.fpath)
         self.lastMTime = mtime
@@ -96,7 +97,112 @@ class KeyboardController:
                 else:
                     events.post( ev )
 
+def drawAALineHexTuple(h, surface, color=white):
+    aaline = pygame.draw.aaline
+    start = h[0]
+    for delta in h[1:]:
+        p1 = start
+        p2 = [start[0]+delta[0], start[1]+delta[1]]
+        aaline(surface, color, p1, p2)
+        start = p2[:]
 
+def drawAALineHex(h, surface, color=white):
+    aaline = pygame.draw.aaline
+    gen = h.deltaGen
+    start = gen.next()
+    for delta in gen:
+        p1 = start
+        p2 = [start[0]+delta[0], start[1]+delta[1]]
+        aaline(surface, color, p1, p2)
+        start = p2[:]
+
+#------------------------------------------------------------------------------
+class Brush(object):
+    timer = 0
+
+class GrowHexBrush(Brush):
+    timer = 0
+    def __init__(self):
+        events.registerListener(self)
+        self.hexes = []
+        self.newHex = None
+
+    def hexUpdate(self):
+        now = time.time()
+        dur = now - self.timer
+        dur *= 5
+        c = self.newHex.center[:]
+        self.newHex.edgesize = dur
+        self.newHex.center = c
+
+    def onMouseLeftDown(self, pos):
+        print 'mousedown'
+        self.newHex = hexagon.Hex()
+        self.newHex.center = pos
+        self.hexes.append(self.newHex)
+        self.timer = time.time()
+
+    def onTick(self, *args):
+        if self.newHex:
+            self.hexUpdate()
+
+    def onMouseLeftUp(self, pos):
+        if not self.newHex:
+            return
+        self.hexUpdate()
+        self.timer = 0
+        self.newHex = None
+    
+class ClusterSinBrush(Brush):
+    timer = 0
+    def __init__(self):
+        events.registerListener(self)
+        self.hexes = []
+        self.newHexes = None
+        self.origPos = None
+        self.origEdgesize = None
+
+    def hexUpdate(self):
+        now = time.time()
+        dur = now - self.timer
+        mousePos = pygame.mouse.get_pos()
+        xDelta = self.origPos[0] - mousePos[0]
+        xDelta %= 100 # moving the mouse 100 pixels out is the max
+        xMod = xDelta / 100.0 # should now be between 0 and 1
+        print 'xd', xDelta
+
+        yDelta = self.origPos[1] - mousePos[1]
+        yDelta %= 100 # moving the mouse 100 pixels out is the max
+        yMod = yDelta / 50.0 # should now be between 0 and 2
+        for h in self.newHexes:
+            c = h.center
+            dist = hexagon.distance(h.center, self.origPos)
+            between0and1 = (1+sin(dist+yMod*pi))/2.0
+            modifier = (between0and1 + xMod) % 2
+            h.edgesize = self.origEdgesize * modifier
+            h.center = c
+
+    def onMouseLeftDown(self, pos):
+        print 'mousedown'
+        self.origPos = list(pos)
+        self.newHexes = list(hexagon.hexOnion(2, pos))
+        self.origEdgesize = self.newHexes[0].edgesize
+        self.hexes += self.newHexes
+        self.timer = time.time()
+
+    def onTick(self, *args):
+        if self.newHexes:
+            self.hexUpdate()
+
+    def onMouseLeftUp(self, pos):
+        if not self.newHexes:
+            return
+        self.hexUpdate()
+        self.timer = 0
+        self.newHexes = None
+        self.origPos = None
+        self.origEdgesize = None
+    
 #------------------------------------------------------------------------------
 class PygameView:
     def __init__(self):
@@ -106,7 +212,7 @@ class PygameView:
         self.window = pygame.display.set_mode( (800,740) )
         pygame.display.set_caption( 'TITLE HERE' )
 
-        self.framesPerSec = 10
+        self.framesPerSec = 30 
         self.countdown = 1.0/self.framesPerSec
 
         self.background = pygame.Surface( self.window.get_size() )
@@ -114,6 +220,9 @@ class PygameView:
 
         self.window.blit( self.background, (0,0) )
         pygame.display.flip()
+
+        #self.brush = GrowHexBrush()
+        self.brush = ClusterSinBrush()
 
         self.showHud()
 
@@ -123,29 +232,23 @@ class PygameView:
 
     #----------------------------------------------------------------------
     def showMap(self):
-        print 'showing map'
-        # clear the screen first
-        self.background.fill(black)
-        self.window.blit( self.background, (0,0) )
-        pygame.display.flip()
+        #print 'showing map'
 
-        #hexes = []
         fp = open('hexagons.out.py')
         hexes = eval(fp.read())
         fp.close()
+        #hexes = []
         #execfile('hexagons.out.py')
 
-        center = self.window.get_rect().center
-        aaline = pygame.draw.aaline
-        white = (255,255,255)
-
         for hTup in hexes:
-            start = hTup[0]
-            for delta in hTup[1:]:
-                p1 = start
-                p2 = [start[0]+delta[0], start[1]+delta[1]]
-                aaline(self.background, white, p1, p2)
-                start = p2[:]
+            drawAALineHexTuple(hTup, self.background)
+            
+    #----------------------------------------------------------------------
+    def showBrush(self):
+        red = (255,5,5)
+
+        for h in self.brush.hexes:
+            drawAALineHex(h, self.window, color=red)
             
     #----------------------------------------------------------------------
     def drawCursor(self):
@@ -160,11 +263,13 @@ class PygameView:
 
     #----------------------------------------------------------------------
     def draw(self):
+        # clear the screen first
+        self.background.fill(black)
+        # Draw the whole ocean of hexes...
+        #self.showMap()
         self.window.blit( self.background, (0,0) )
 
-        #for tSprite in tileGroup:
-            #tSprite.update()
-        #dirtyRects = tileGroup.draw( self.window )
+        self.showBrush()
 
         for hudSprite in hudGroup:
             #print 'calling update on ', hudSprite

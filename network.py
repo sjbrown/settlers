@@ -6,9 +6,53 @@ from mapmodel import Tile, Edge, Corner
 from twisted.spread import pb
 
 # A list of ALL possible events that a server can send to a client
-serverToClientEvents = []
+serverToClientEvents = [
+'BoardCreated',
+'CardHarvestOver',
+'ChooseTwoCards',
+'ConfirmProposal',
+'CountdownOver',
+'DiceRoll',
+'Discard',
+'Error',
+'EventNotAllowedAtThisStage',
+'FatalEvent',
+'Harvest',
+'ItemPlaced',
+'ItemRemoved',
+'MaritimeTrade',
+'Monopoly',
+'MonopolyGive',
+'PlayerCannotAfford',
+'PlayerCannotBuy',
+'PlayerDrewVictoryCard',
+'PlayerJoin',
+'PlayerPlacing',
+'PlayerSet',
+'ProposeTrade',
+'RefreshState',
+'Rob',
+'RobberPlaced',
+'StageChange',
+]
 # A list of ALL possible events that a client can send to a server
-clientToServerEvents = []
+clientToServerEvents = [
+'BuyRequest'
+'ChooseTwoCardsRequest'
+'ConfirmProposalRequest'
+'DiceRollRequest'
+'DiscardRequest'
+'MaritimeTradeRequest'
+'MonopolyRequest'
+'PlayVictoryCardRequest'
+'PlayerJoin'
+'ProposeTrade'
+'RefreshState'
+'RobRequest'
+'RobberPlaceRequest'
+'SkipRobRequest'
+'TurnFinishRequest'
+]
 
 #------------------------------------------------------------------------------
 #Mix-In Helper Functions
@@ -32,7 +76,16 @@ class Placeholder(object):
         #self.objID = objID
 
 #------------------------------------------------------------------------------
-def serialize(obj, registry):
+def serialize(obj, registry, reverseRegistry=None):
+    '''Serialize any obj.
+    Python literals are returned as is.
+    Sequences and Dicts need to serialize the objects they contain.
+    Any other type of object needs to be turned into an ID number (integer).
+    If reverseRegistry is provided, and reverseRegistry[obj] exists, the ID
+    number will be that value.  This is useful in the case of clients, where
+    the authoritative ID number came from the server.  Otherwise, the ID
+    number will simply be id(obj)
+    '''
     objType = type(obj)
     if objType in [str, unicode, int, float, bool, type(None)]:
         return obj
@@ -50,7 +103,10 @@ def serialize(obj, registry):
         return new_obj
 
     else:
-        objID = id(obj)
+        if reverseRegistry and reverseRegistry[obj]:
+            objID = reverseRegistry[obj]
+        else:
+            objID = id(obj)
         registry[objID] = obj
         return objID
         
@@ -258,8 +314,6 @@ class CopyableGameState(Serializable):
     registry_attrs = ['game', '_activePlayer']
 
     def getStateToCopy(self, registry):
-        if self._stage in [Stages.waitingForPlayers, Stages.setup]:
-            raise Exception('Can not save game that has not started')
         return Serializable.getStateToCopy(self, registry)
 
     def unserialize_awaitingDiscard(self, stateDict, registry):

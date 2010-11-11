@@ -10,9 +10,11 @@ from twisted.spread import pb
 from twisted.spread.pb import DeadReferenceError
 from twisted.cred import checkers, portal
 from zope.interface import implements
-from catan import Game
+import catan
 import events
 import network
+
+DEBUG = True
 
 #------------------------------------------------------------------------------
 def PostMortem(fatalEvent, reactor):
@@ -31,7 +33,7 @@ class NoTickEventManager(events.EventManager):
     def __init__(self):
         events.EventManager.__init__(self)
         self._lock = False
-    def Post(self, event):
+    def post(self, event):
         self.eventQueue.append(event)
         #print 'ev q is', self.eventQueue, 'lock is', self._lock
         if not self._lock:
@@ -60,11 +62,9 @@ class TimerController:
         if self.numClients == 0:
             return
 
-        ev = SecondEvent()
-        events.post( ev )
-        ev = TickEvent()
-        events.post( ev )
-        self.reactor.callLater( 1, self.Tick )
+        events.post('SecondEvent')
+        events.post('Tick')
+        self.reactor.callLater( 5, self.Tick ) # repeat every 5 seconds
 
     #----------------------------------------------------------------------
     def onClientConnectEvent(self, mind, avatarID):
@@ -192,58 +192,77 @@ class NetworkClientController(pb.Avatar):
         return [objectID, objDict]
     
     #----------------------------------------------------------------------
-    def perspective_EventOverNetwork(self, event):
-        if isinstance(event, network.CopyableCharactorPlaceRequest):
-            try:
-                player = sharedObjectRegistry[event.playerID]
-            except KeyError, ex:
-                events.post('FatalEvent', ex)
-                raise
-            pName = player.name
-            if pName not in self.PlayersIControl():
-                print 'i do not control', player
-                print 'see?', self.PlayersIControl()
-                print 'so i will ignore', event
-                return
-            try:
-                charactor = sharedObjectRegistry[event.charactorID]
-                sector = sharedObjectRegistry[event.sectorID]
-            except KeyError, ex:
-                events.post('FatalEvent', ex)
-                raise
-            ev = CharactorPlaceRequest( player, charactor, sector )
-        elif isinstance(event, network.CopyableCharactorMoveRequest):
-            try:
-                player = sharedObjectRegistry[event.playerID]
-            except KeyError, ex:
-                events.post('FatalEvent', ex)
-                raise
-            pName = player.name
-            if pName not in self.PlayersIControl():
-                return
-            try:
-                charactor = sharedObjectRegistry[event.charactorID]
-            except KeyError, ex:
-                print 'sharedObjs did not have key:', ex
-                print 'current sharedObjs:', sharedObjectRegistry
-                print 'Did a client try to poison me?'
-                events.post('FatalEvent', ex)
-                raise
-            direction = event.direction
-            ev = CharactorMoveRequest(player, charactor, direction)
+    def perspective_DebugInfo(self):
+        if DEBUG:
+            from pprint import pformat
+            return ('Debug Info\n' +
+                    pformat(events.interestingHistory()[-5:]) +
+                    '\n\nEvent Queue:\n' +
+                    pformat(events._eventManager.eventQueue)
+                    )
 
-        elif isinstance(event, PlayerJoinRequest):
-            pName = event.playerDict['name']
+    #----------------------------------------------------------------------
+    def perspective_EventOverNetwork(self, event):
+        #if isinstance(event, network.CopyableCharactorPlaceRequest):
+        #    try:
+        #        player = sharedObjectRegistry[event.playerID]
+        #    except KeyError, ex:
+        #        events.post('FatalEvent', ex)
+        #        raise
+        #    pName = player.name
+        #    if pName not in self.PlayersIControl():
+        #        print 'i do not control', player
+        #        print 'see?', self.PlayersIControl()
+        #        print 'so i will ignore', event
+        #        return
+        #    try:
+        #        charactor = sharedObjectRegistry[event.charactorID]
+        #        sector = sharedObjectRegistry[event.sectorID]
+        #    except KeyError, ex:
+        #        events.post('FatalEvent', ex)
+        #        raise
+        #    ev = CharactorPlaceRequest( player, charactor, sector )
+        #elif isinstance(event, network.CopyableCharactorMoveRequest):
+        #    try:
+        #        player = sharedObjectRegistry[event.playerID]
+        #    except KeyError, ex:
+        #        events.post('FatalEvent', ex)
+        #        raise
+        #    pName = player.name
+        #    if pName not in self.PlayersIControl():
+        #        return
+        #    try:
+        #        charactor = sharedObjectRegistry[event.charactorID]
+        #    except KeyError, ex:
+        #        print 'sharedObjs did not have key:', ex
+        #        print 'current sharedObjs:', sharedObjectRegistry
+        #        print 'Did a client try to poison me?'
+        #        events.post('FatalEvent', ex)
+        #        raise
+        #    direction = event.direction
+        #    ev = CharactorMoveRequest(player, charactor, direction)
+
+        print 'event', event
+        print 'event.name', event.name
+        if event.name == 'PlayerJoinRequest':
+            pName = event.playerName
             print 'got player join req.  known players:', self.realm.knownPlayers()
             if pName in self.realm.knownPlayers():
                 print 'this player %s has already joined' % pName
-                return
+                return 'this player %s has already joined' % pName
             self.ControlPlayer(pName)
-            ev = event
+            humanPlayer = catan.HumanPlayer(pName)
+            ev = events.makeEventFromString('PlayerJoin', humanPlayer)
+            events.post(ev)
+        elif event.name == 'FillWithCPUPlayersRequest':
+            from cpu_player_minimal import CPUPlayer
+            events.post('PlayerJoin', CPUPlayer(1))
+            events.post('PlayerJoin', CPUPlayer(2))
+            events.post('PlayerJoin', CPUPlayer(3))
         else:
             ev = event
+            events.post(ev)
 
-        events.post( ev )
 
         return 1
 
@@ -350,7 +369,7 @@ class Model(dict):
     def __setitem__(self, key, val):
         print 'setting', key, val
         dict.__setitem__(self, key, val)
-        if isinstance(val, Game):
+        if isinstance(val, catan.Game):
             self.gameKey = key
 
     def getGame(self):
@@ -368,8 +387,8 @@ def main():
     logfile = sys.stdout
     log = TextLogView(logfile)
     timer = TimerController(reactor)
-    game = Game()
-    sharedObjectRegistry[id(game)] = game
+    catan.init()
+    sharedObjectRegistry[id(catan.game)] = catan.game
 
     #factory = pb.PBServerFactory(clientController)
     #reactor.listenTCP( 8000, factory )

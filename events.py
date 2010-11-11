@@ -119,21 +119,26 @@ def post(arg1, *extraArgs, **kwargs):
         assert not kwargs
         post_eventObj(arg1)
     else:
-        assert isinstance(arg1, str)
-        post_stringEvent(arg1, extraArgs, kwargs)
+        assert isinstance(arg1, str), (
+               'Tried to post() an object that was not an Event or string. '
+               '(%s %s)' % (arg1, arg1.__class__))
+        post_stringEvent(arg1, *extraArgs, **kwargs)
 
 def post_eventObj(ev):
     _eventManager.post(ev)
 
-def post_stringEvent(arg1, extraArgs, kwargs):
+def makeEventFromString(arg1, *extraArgs, **kwargs):
     class AnonymousEvent(Event): pass
     AnonymousEvent.__name__ = arg1
     event = AnonymousEvent()
     event.name = arg1
     event.args = extraArgs
     event.kwargs = kwargs
-    _eventManager.post(event)
+    return event
 
+def post_stringEvent(arg1, *extraArgs, **kwargs):
+    event = makeEventFromString(arg1, *extraArgs, **kwargs)
+    _eventManager.post(event)
 
 def registerListener(listener):
     _eventManager.registerListener(listener)

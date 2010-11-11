@@ -30,8 +30,8 @@ def conn():
     connection = reactor.connectTCP('localhost', 8000, factory)
     usercred = cred.credentials.UsernamePassword('user1', 'pass1')
 
-    d.addCallback(catch_remote)
     d = factory.login(usercred)
+    d.addCallback(catch_remote)
 
 def catch_initialSync(gameIDGameDict):
     print 'got', gameIDGameDict
@@ -42,7 +42,7 @@ def catch_initialSync(gameIDGameDict):
 def initialSync():
     print 'initsync'
     global d
+    d = remote.callRemote('GetGameSync')
     d.addCallback(catch_initialSync)
     d.addErrback(catch)
-    d = remote.callRemote('GetGameSync')
 

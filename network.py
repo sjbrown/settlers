@@ -45,7 +45,7 @@ clientToServerEvents = [
 'MaritimeTradeRequest'
 'MonopolyRequest'
 'PlayVictoryCardRequest'
-'PlayerJoin'
+'PlayerJoinRequest'
 'ProposeTrade'
 'RefreshState'
 'RobRequest'
@@ -222,18 +222,38 @@ class ClientErrorEvent(object):
         self.name = "Client Err Event"
 
 #------------------------------------------------------------------------------
-#
-##------------------------------------------------------------------------------
-## PlayerJoinEvent
-## Direction: Server to Client only
-#class CopyablePlayerJoinEvent( pb.Copyable, pb.RemoteCopy):
-#    def __init__(self, event, registry):
-#        self.name = "Copyable " + event.name
-#        self.playerID = id(event.player)
-#        registry[self.playerID] = event.player
-#pb.setUnjellyableForClass(CopyablePlayerJoinEvent, CopyablePlayerJoinEvent)
-#serverToClientEvents.append( CopyablePlayerJoinEvent )
-#
+
+#------------------------------------------------------------------------------
+# PlayerJoinRequest
+# Direction: Client to Server only
+class CopyablePlayerJoinRequest(events.Event, pb.Copyable, pb.RemoteCopy):
+    def __init__(self, event, registry):
+        self.name = event.name
+        self.playerName = event.args[0]
+pb.setUnjellyableForClass(CopyablePlayerJoinRequest, CopyablePlayerJoinRequest)
+clientToServerEvents.append(CopyablePlayerJoinRequest)
+
+#------------------------------------------------------------------------------
+# FillWithCPUPlayersRequest
+# Direction: Client to Server only
+class CopyableFillWithCPUPlayersRequest(events.Event, pb.Copyable, pb.RemoteCopy):
+    def __init__(self, event, registry):
+        self.name = event.name
+pb.setUnjellyableForClass(CopyableFillWithCPUPlayersRequest,
+                          CopyableFillWithCPUPlayersRequest)
+clientToServerEvents.append(CopyableFillWithCPUPlayersRequest)
+
+#------------------------------------------------------------------------------
+# PlayerJoin
+# Direction: Server to Client only
+class CopyablePlayerJoinEvent(events.Event, pb.Copyable, pb.RemoteCopy):
+    def __init__(self, event, registry):
+        self.name = "Copyable" + event.name
+        self.playerID = id(event.args[0])
+        registry[self.playerID] = event.args[0]
+pb.setUnjellyableForClass(CopyablePlayerJoinEvent, CopyablePlayerJoinEvent)
+serverToClientEvents.append(CopyablePlayerJoinEvent)
+
 ##------------------------------------------------------------------------------
 ## GameStartedEvent
 ## Direction: Server to Client only

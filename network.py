@@ -68,12 +68,33 @@ def MixInCopyClasses( someClass ):
 
 #------------------------------------------------------------------------------
 class Placeholder(object):
-    def __init__(self, objID, registry):
-        registry[objID] = self
-    #def __init__(self, objID, referrer, setFn):
-        #self.referrer = referrer
-        #self.setFn = setFn
-        #self.objID = objID
+    def __init__(self, objID, reg):
+        if objID in reg:
+            raise Exception('Making a placeholder for an obj that has'
+                            ' already been retrieved (%s)' % objID)
+        self.placeholder_id = objID
+        reg[objID] = self
+    def placeholder_setDict(self, myDict):
+        self.placeholder_dict = myDict
+    def placeholder_setClass(self, cls, reg):
+        self.__class__ = cls
+        neededObjIDs = self.setCopyableState(self.placeholder_dict, reg)
+        return neededObjIDs
+        # just ignore the neededObjIDs as the load() function will fill
+        # everything in.... hopefully
+    def setCopyableState(self, objDict, reg):
+        print 'in placeholder setcopyablestate'
+        self.placeholder_setDict(objDict)
+        clsPath, clsName = objDict['__classpathAndName']
+        try:
+            # TODO: big potential security hole here. FIXME
+            module = __import__(clsPath, globals(), locals())
+            cls = getattr(module, clsName)
+        except Exception, ex:
+            raise
+        return self.placeholder_setClass(cls, reg)
+
+
 
 #------------------------------------------------------------------------------
 def serialize(obj, registry, reverseRegistry=None):
@@ -134,6 +155,8 @@ class Serializable:
 
     def getStateToCopy(self, registry):
         d = {}
+        cls = self.__class__
+        d['__classpathAndName'] = cls.__module__, cls.__name__
         for attr in self.copyworthy_attrs:
             val = getattr(self, attr)
             new_val = serialize(val, registry)
@@ -158,6 +181,7 @@ class Serializable:
                 setattr(self, attrName, value)
 
         self.postUnserialize()
+        print self.__class__, 'object still needs', neededObjIDs
         return neededObjIDs
 
     def genericUnserialize(self, stateDict, registry, attrName, value):
@@ -212,12 +236,12 @@ def unserialize_shallow_list(attrName):
 
 
 #------------------------------------------------------------------------------
-class ServerErrorEvent(object):
+class ServerErrorEvent(events.Event):
     def __init__(self):
         self.name = "Server Err Event"
 
 #------------------------------------------------------------------------------
-class ClientErrorEvent(object):
+class ClientErrorEvent(events.Event):
     def __init__(self):
         self.name = "Client Err Event"
 
@@ -254,21 +278,16 @@ class CopyablePlayerJoinEvent(events.Event, pb.Copyable, pb.RemoteCopy):
 pb.setUnjellyableForClass(CopyablePlayerJoinEvent, CopyablePlayerJoinEvent)
 serverToClientEvents.append(CopyablePlayerJoinEvent)
 
-##------------------------------------------------------------------------------
-## GameStartedEvent
-## Direction: Server to Client only
-#class CopyableGameStartedEvent(pb.Copyable, pb.RemoteCopy):
-#    def __init__(self, event, registry):
-#        self.name = "Copyable Game Started Event"
-#        self.gameID = id(event.game)
-#        registry[self.gameID] = event.game
-#        #TODO: put this in a Player Join Event or something
-#        for p in event.game.players:
-#            registry[id(p)] = p
-#
-#pb.setUnjellyableForClass(CopyableGameStartedEvent, CopyableGameStartedEvent)
-#serverToClientEvents.append( CopyableGameStartedEvent )
-#
+#------------------------------------------------------------------------------
+# StageChange
+# Direction: Server to Client only
+class CopyableStageChange(pb.Copyable, pb.RemoteCopy):
+    def __init__(self, event, registry):
+        self.name = "Copyable" + event.name
+        self.newStage = event.newStage
+pb.setUnjellyableForClass(CopyableStageChange, CopyableStageChange)
+serverToClientEvents.append( CopyableStageChange )
+
 ##------------------------------------------------------------------------------
 ## MapBuiltEvent
 ## Direction: Server to Client only
@@ -303,6 +322,9 @@ serverToClientEvents.append(CopyablePlayerJoinEvent)
 class CopyableGame(Serializable):
     copyworthy_attrs = ['state', 'players', 'board']
     registry_attrs = ['state', 'board']
+
+    def preUnserialize(self):
+        print 'CopyableGame is pre unserialize'
 
     def postUnserialize(self):
         self.dice = Dice()
@@ -349,6 +371,8 @@ class CopyableGameState(Serializable):
                 neededObjIDs.append(value)
         return neededObjIDs
 
+    def preUnserialize(self):
+        print 'CopyableGameState is pre unserialize'
     def postUnserialize(self):
         events.registerListener(self)
 

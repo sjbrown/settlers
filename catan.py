@@ -120,7 +120,6 @@ class GameState(object):
         return self._stage
     def setStage(self, stage):
         self._stage = stage
-        #events.post('StageChange', stage)
         events.post(StageChange(stage))
     stage = property(getStage, setStage)
 
@@ -1136,7 +1135,14 @@ class HumanPlayer(Player):
 
 game = None
 
-def init():
+def init(eventModule=None):
+    '''The eventModule, if provided, must implement the interface
+    registerListener() and post().  That is all.
+    '''
+    global events
+    if eventModule:
+        events = eventModule
+        mapmodel.events = eventModule
     global game
     game = Game()
 

@@ -908,6 +908,13 @@ class PygameView:
 
     #----------------------------------------------------------------------
     def showHud(self):
+        console = Console()
+        console.topleft = 10, 640
+
+        if catan.game.state.stage in [catan.Stages.waitingForPlayers,
+                                      catan.Stages.setup]:
+            return
+
         sbutton = SoldierButton()
         sbutton.topleft = 600, 100
 
@@ -938,8 +945,6 @@ class PygameView:
         sbutton = SaveGameButton()
         sbutton.topleft = 600, 600
 
-        console = Console()
-        console.topleft = 10, 640
 
     #----------------------------------------------------------------------
     def showMap(self, board):
@@ -1078,7 +1083,8 @@ class PygameView:
     #----------------------------------------------------------------------
     def onRefreshState(self):
         self.refresh()
-        self.showMap(catan.game.board)
+        if catan.game.board:
+            self.showMap(catan.game.board)
         for player in catan.game.players:
             playerDisplay = PlayerDisplay(player)
             if isinstance(player, catan.HumanPlayer):

@@ -22,7 +22,7 @@ class StageChange(events.Event):
     def __init__(self, newStage):
         events.Event.__init__(self, newStage)
         self.newStage = newStage
-        print self
+        print 'New StageChange Event', self
     def __repr__(self):
         return '<StageChange Event %s>' % self.newStage
     __str__ = __repr__

@@ -1166,6 +1166,7 @@ class PygameView:
 
     #----------------------------------------------------------------------
     def onStageChange(self, newStage):
+        print 'pygame view got stage change', newStage, catan.game.state.stage
         self.addHudButtons()
 
 #------------------------------------------------------------------------------

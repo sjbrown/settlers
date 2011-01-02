@@ -3,7 +3,6 @@ This is the minimal CPU player.  It's good for testing, but not much else
 '''
 
 import random
-import events
 import mapmodel
 import catan
 from catan import Stages, Player, Settlement, City, Road, Robber, Stone, Brick, Grain, Sheep, Wood, Desert, Mountain, Mud, Wheat, Grass, Forest, Cathedral, University, Soldier, YearOfPlenty, Monopoly

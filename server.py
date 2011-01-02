@@ -245,20 +245,21 @@ class NetworkClientController(pb.Avatar):
         print 'event', event
         print 'event.name', event.name
         if event.name == 'PlayerJoinRequest':
-            pName = event.playerName
-            print 'got player join req.  known players:', self.realm.knownPlayers()
-            if pName in self.realm.knownPlayers():
-                print 'this player %s has already joined' % pName
-                return 'this player %s has already joined' % pName
-            self.ControlPlayer(pName)
-            humanPlayer = catan.HumanPlayer(pName)
+            # TODO: this needs more checking to see if the request is valid
+            pIdent = event.playerIdentifier
+            print ('got player join req (%s).  known players: %s' 
+                  % (vars(event), self.realm.knownPlayers()))
+            if pIdent in self.realm.knownPlayers():
+                print 'this player %s has already joined' % pIdent
+                return 'this player %s has already joined' % pIdent
+            self.ControlPlayer(pIdent)
+            humanPlayer = catan.HumanPlayer(pIdent)
             ev = events.makeEventFromString('PlayerJoin', humanPlayer)
             events.post(ev)
         elif event.name == 'FillWithCPUPlayersRequest':
             from cpu_player_minimal import CPUPlayer
-            events.post('PlayerJoin', CPUPlayer(1))
-            events.post('PlayerJoin', CPUPlayer(2))
-            events.post('PlayerJoin', CPUPlayer(3))
+            for i in range(len(catan.game.players)+1, 4+1):
+                events.post('PlayerJoin', CPUPlayer(i))
         else:
             ev = event
             events.post(ev)
@@ -271,10 +272,10 @@ class NetworkClientController(pb.Avatar):
         return self.realm.playersControlledByAvatar[self.avatarID]
 
     #----------------------------------------------------------------------
-    def ControlPlayer(self, playerName):
+    def ControlPlayer(self, playerIdentifier):
         '''Note: this modifies self.realm.playersControlledByAvatar'''
         players = self.PlayersIControl()
-        players.append(playerName)
+        players.append(playerIdentifier)
         
     #----------------------------------------------------------------------
     def onGameStartedEvent(self, event):
@@ -336,6 +337,7 @@ class NetworkClientView(object):
             evName = ev.name
             copyableClsName = "Copyable"+evName
             if not hasattr( network, copyableClsName ):
+                print 'not sending %s, no copyable class name' % evName
                 return None
             copyableClass = getattr( network, copyableClsName )
             ev = copyableClass( ev, sharedObjectRegistry )
@@ -347,7 +349,7 @@ class NetworkClientView(object):
         return ev
 
     #----------------------------------------------------------------------
-    def Notify(self, event):
+    def notify(self, event):
         #NOTE: this is very "chatty".  We could restrict 
         #      the number of clients notified in the future
 

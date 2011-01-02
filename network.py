@@ -37,21 +37,22 @@ serverToClientEvents = [
 ]
 # A list of ALL possible events that a client can send to a server
 clientToServerEvents = [
-'BuyRequest'
-'ChooseTwoCardsRequest'
-'ConfirmProposalRequest'
-'DiceRollRequest'
-'DiscardRequest'
-'MaritimeTradeRequest'
-'MonopolyRequest'
-'PlayVictoryCardRequest'
-'PlayerJoinRequest'
-'ProposeTrade'
-'RefreshState'
-'RobRequest'
-'RobberPlaceRequest'
-'SkipRobRequest'
-'TurnFinishRequest'
+'BuyRequest',
+'ChooseTwoCardsRequest',
+'ConfirmProposalRequest',
+'DiceRollRequest',
+'DiscardRequest',
+'MaritimeTradeRequest',
+'MonopolyRequest',
+'PlayVictoryCardRequest',
+'PlayerJoinRequest',
+'FillWithCPUPlayersRequest',
+'ProposeTrade',
+'RefreshState',
+'RobRequest',
+'RobberPlaceRequest',
+'SkipRobRequest',
+'TurnFinishRequest',
 ]
 
 #------------------------------------------------------------------------------
@@ -225,14 +226,12 @@ def unserialize_shallow_list(attrName):
 ## Direction: Client to Server only
 #MixInCopyClasses( QuitEvent )
 #pb.setUnjellyableForClass(QuitEvent, QuitEvent)
-#clientToServerEvents.append( QuitEvent )
 #
 ##------------------------------------------------------------------------------
 ## GameStartRequest
 ## Direction: Client to Server only
 #MixInCopyClasses( GameStartRequest )
 #pb.setUnjellyableForClass(GameStartRequest, GameStartRequest)
-#clientToServerEvents.append( GameStartRequest )
 
 
 #------------------------------------------------------------------------------
@@ -253,9 +252,8 @@ class ClientErrorEvent(events.Event):
 class CopyablePlayerJoinRequest(events.Event, pb.Copyable, pb.RemoteCopy):
     def __init__(self, event, registry):
         self.name = event.name
-        self.playerName = event.args[0]
+        self.playerIdentifier = event.args[0].identifier
 pb.setUnjellyableForClass(CopyablePlayerJoinRequest, CopyablePlayerJoinRequest)
-clientToServerEvents.append(CopyablePlayerJoinRequest)
 
 #------------------------------------------------------------------------------
 # FillWithCPUPlayersRequest
@@ -265,52 +263,27 @@ class CopyableFillWithCPUPlayersRequest(events.Event, pb.Copyable, pb.RemoteCopy
         self.name = event.name
 pb.setUnjellyableForClass(CopyableFillWithCPUPlayersRequest,
                           CopyableFillWithCPUPlayersRequest)
-clientToServerEvents.append(CopyableFillWithCPUPlayersRequest)
 
 #------------------------------------------------------------------------------
 # PlayerJoin
 # Direction: Server to Client only
-class CopyablePlayerJoinEvent(events.Event, pb.Copyable, pb.RemoteCopy):
+class CopyablePlayerJoin(events.Event, pb.Copyable, pb.RemoteCopy):
     def __init__(self, event, registry):
-        self.name = "Copyable" + event.name
+        self.name = event.name
         self.playerID = id(event.args[0])
         registry[self.playerID] = event.args[0]
-pb.setUnjellyableForClass(CopyablePlayerJoinEvent, CopyablePlayerJoinEvent)
-serverToClientEvents.append(CopyablePlayerJoinEvent)
+pb.setUnjellyableForClass(CopyablePlayerJoin, CopyablePlayerJoin)
+serverToClientEvents.append(CopyablePlayerJoin)
 
 #------------------------------------------------------------------------------
 # StageChange
 # Direction: Server to Client only
-class CopyableStageChange(pb.Copyable, pb.RemoteCopy):
+class CopyableStageChange(events.Event, pb.Copyable, pb.RemoteCopy):
     def __init__(self, event, registry):
-        self.name = "Copyable" + event.name
+        self.name = event.name
         self.newStage = event.newStage
 pb.setUnjellyableForClass(CopyableStageChange, CopyableStageChange)
 serverToClientEvents.append( CopyableStageChange )
-
-##------------------------------------------------------------------------------
-## MapBuiltEvent
-## Direction: Server to Client only
-#class CopyableMapBuiltEvent( pb.Copyable, pb.RemoteCopy):
-#    def __init__(self, event, registry ):
-#        self.name = "Copyable Map Finished Building Event"
-#        self.mapID = id( event.map )
-#        registry[self.mapID] = event.map
-#
-#pb.setUnjellyableForClass(CopyableMapBuiltEvent, CopyableMapBuiltEvent)
-#serverToClientEvents.append( CopyableMapBuiltEvent )
-#
-##------------------------------------------------------------------------------
-## ItemPlaceEvent
-## Direction: Server to Client only
-#class CopyableItemPlaceEvent( pb.Copyable, pb.RemoteCopy):
-#    def __init__(self, event, registry ):
-#        self.name = "Copyable " + event.name
-#        self.ItemID = id( event.item )
-#        registry[self.itemID] = event.item
-#
-#pb.setUnjellyableForClass(CopyableItemPlaceEvent, CopyableItemPlaceEvent)
-#serverToClientEvents.append( CopyableItemPlaceEvent )
 
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------

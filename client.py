@@ -110,13 +110,14 @@ class NetworkServerView(pb.Root):
             #NOTE, never even construct an instance of an event that
             # is serverToClient, as a side effect is often adding a
             # key to the registry with the local id().
-            if copyableClass not in network.clientToServerEvents:
+            if ev.name not in network.clientToServerEvents:
+                print "CLIENT NOT CREATING: " + str(copyableClsName)
                 return
-            #print 'creating instance of copyable class', copyableClsName
+            print 'creating instance of copyable class', copyableClsName
             ev = copyableClass( event, self.sharedObjs )
 
         if ev.name not in network.clientToServerEvents:
-            #print "CLIENT NOT SENDING: " +str(ev)
+            print "CLIENT NOT SENDING: " + str(ev)
             return
 
         if self.server:
@@ -149,6 +150,7 @@ class NetworkServerController(pb.Referenceable):
 
 #------------------------------------------------------------------------------
 class PhonyEventModule(object):
+    Event = events.Event
     #--------------------------------------------------------------------------
     def post(self, arg1, *extraArgs, **kwargs):
         pass
@@ -264,7 +266,7 @@ class PhonyModel:
             remoteResponse.addErrback(self.ServerErrorHandler, 'ServerConnect')
 
         elif isinstance( event, network.CopyableStageChange ):
-            self.game.setStage(event.newStage)
+            #self.game.setStage(event.newStage)
             ev = catan.StageChange(event.newStage)
             self.realEvModule.post(ev)
 
@@ -273,8 +275,9 @@ class PhonyModel:
             print 'Client state at the time of server error:'
             pprint(self.sharedObjs)
 
-        elif isinstance( event, network.CopyablePlayerJoinEvent ):
-            playerName = event.playerName
+        elif isinstance( event, network.CopyablePlayerJoin ):
+            print 'copyable player join event'
+            playerID = event.playerID
             if not self.sharedObjs.has_key(playerID):
                 player = network.Placeholder(playerID, self.sharedObjs)
             remoteResponse = self.server.callRemote("GetObjectState", playerID)
@@ -321,7 +324,6 @@ class PhonyModel:
     #----------------------------------------------------------------------
     def PlayerJoinCallback(self, deferredResult, playerID):
         player = self.sharedObjs[playerID]
-        self.game.AddPlayer( player )
         self.realEvModule.post('PlayerJoin', player)
     #----------------------------------------------------------------------
     def ServerErrorHandler(self, failure, *args):

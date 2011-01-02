@@ -110,6 +110,45 @@ class KeyboardController:
                 else:
                     events.post( ev )
 
+#------------------------------------------------------------------------------
+class JoinButton(TextButton):
+    def __init__(self):
+        TextButton.__init__(self, (150,50), 'JOIN')
+        self.pID = None
+
+    #----------------------------------------------------------------------
+    def onMouseLeftDown(self, pos):
+        if self.rect.collidepoint(pos):
+            global humanPlayer
+            # find a free player id by inspecting catan.game.players
+            pIDs = [int(p.identifier) for p in catan.game.players]
+            for i in range(1,5):
+                if i not in pIDs:
+                    break
+            self.pID = i
+            humanPlayer = catan.HumanPlayer(self.pID)
+            events.post('PlayerJoinRequest', humanPlayer)
+
+    #----------------------------------------------------------------------
+    def onPlayerJoin(self, player):
+        if player.identifier == self.pID:
+            self.kill()
+
+#------------------------------------------------------------------------------
+class FillPlayersButton(TextButton):
+    def __init__(self):
+        TextButton.__init__(self, (150,50), 'FILL WITH CPUS')
+
+    #----------------------------------------------------------------------
+    def onMouseLeftDown(self, pos):
+        if self.rect.collidepoint(pos):
+            events.post('FillWithCPUPlayersRequest')
+
+    #----------------------------------------------------------------------
+    def onTick(self, *args):
+        if len(catan.game.players) >= 4:
+            self.kill()
+
 
 #------------------------------------------------------------------------------
 class EndTurnButton(TextButton):
@@ -899,22 +938,37 @@ class PygameView:
 
         self.showRobberCursor = False
 
-        self.showHud()
+        self.addHudButtons()
 
 
     #----------------------------------------------------------------------
     def refresh(self):
         self.opponentDisplayPositions = [ (0,5), (100,0), (200,5) ]
+        self.addHudButtons()
 
     #----------------------------------------------------------------------
-    def showHud(self):
+    def addHudButtons(self):
+        hudGroup.empty()
         console = Console()
         console.topleft = 10, 640
 
-        if catan.game.state.stage in [catan.Stages.waitingForPlayers,
-                                      catan.Stages.setup]:
+        if catan.game.state.stage == catan.Stages.setup:
             return
+        elif catan.game.state.stage == catan.Stages.waitingForPlayers:
+            self.addJoinButtons()
+        else:
+            self.addPlayButtons()
 
+    #----------------------------------------------------------------------
+    def addJoinButtons(self):
+        pbutton = JoinButton()
+        pbutton.topleft = 600, 100
+
+        fbutton = FillPlayersButton()
+        fbutton.topleft = 600, 200
+
+    #----------------------------------------------------------------------
+    def addPlayButtons(self):
         sbutton = SoldierButton()
         sbutton.topleft = 600, 100
 
@@ -944,7 +998,6 @@ class PygameView:
         
         sbutton = SaveGameButton()
         sbutton.topleft = 600, 600
-
 
     #----------------------------------------------------------------------
     def showMap(self, board):
@@ -1075,7 +1128,6 @@ class PygameView:
         mdisplay.add(hudGroup)
         mdisplay.center = self.window.get_rect().center
 
-
     #----------------------------------------------------------------------
     def onBoardCreated(self, board):
         self.showMap(board)
@@ -1097,16 +1149,24 @@ class PygameView:
     #----------------------------------------------------------------------
     def onPlayerJoin(self, player):
         playerDisplay = PlayerDisplay(player)
-        if isinstance(player, catan.HumanPlayer):
+        if player.identifier == humanPlayer.identifier:
+            # TODO: is this weird? Deferring to the server's authourity...
+            global humanPlayer
+            humanPlayer = player
             playerDisplay.topleft = 350, 660
         else:
             # CPU Player
+            print '  CPU JOINS', player
             pos = self.opponentDisplayPositions.pop(0)
             playerDisplay.topleft = pos
 
     #----------------------------------------------------------------------
     def onTick(self):
         self.draw()
+
+    #----------------------------------------------------------------------
+    def onStageChange(self, newStage):
+        self.addHudButtons()
 
 #------------------------------------------------------------------------------
 class BoardDisplay(object):

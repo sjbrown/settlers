@@ -1,10 +1,13 @@
 import math
 from math import sin, cos, sqrt
 import shutil
-import os
+import os, sys
 import time
+from functools import partial
 
 inkscape_pt_to_mm = 3.8655
+
+fn = None
 
 
 def reasonable(x):
@@ -343,6 +346,7 @@ def makeColorInHexadecimal_4(h):
 
 
 def draw():
+    s = ''
     #h = Hex((0,0))
     #h.center = (0,0)
     #s += h.tosvg()
@@ -362,25 +366,28 @@ def draw():
         #h.fillcolor = color
         #s += h.tosvg()
     #for h in hexgrid(30,50):
-    return hexOnion(2)
-    #for h in hexFlower(2):
-        #s += h.tosvg()
-        #bzone = sin_intensity(h.center)
-        #numInternalHexes = int(bzone * 5)
+    #return hexOnion(2)
+    for x in fn():
+        yield x
+
+def drawHexFlower(x):
+    for h in hexFlower(x):
+        s += h.tosvg()
+        bzone = sin_intensity(h.center)
+        numInternalHexes = int(bzone * 5)
         #print 'numInternalHexes', numInternalHexes
-        #hi = Hex()
-        #hi.edgesize = h.edgesize - 2*(numInternalHexes)
-        #hi.edgesize = h.edgesize - 2*(1+bzone)
-        #hi.center = h.center
-        #yield hi
-        #if numInternalHexes == 0:
-            #s += h.tosvg()
-            #
-        #for i in range(numInternalHexes):
-            #hi = Hex()
-            #hi.edgesize = h.edgesize - 2*(i+1)
-            #hi.center = h.center
-            #s += hi.tosvg()
+        hi = Hex()
+        hi.edgesize = h.edgesize - 2*(numInternalHexes)
+        hi.edgesize = h.edgesize - 2*(1+bzone)
+        hi.center = h.center
+        yield hi
+        if numInternalHexes == 0:
+            s += h.tosvg()
+        for i in range(numInternalHexes):
+            hi = Hex()
+            hi.edgesize = h.edgesize - 2*(i+1)
+            hi.center = h.center
+            s += hi.tosvg()
 
 def writePy():
     fname = 'hexagons.out.py'
@@ -469,4 +476,9 @@ def writeSVG():
     fp.close()
 
 if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print 'Usage: "o", '
+        fn = partial(drawHexFlower, 3)
+    else:
+        if sys.argv[2] == 'o':
     writeSVG()
